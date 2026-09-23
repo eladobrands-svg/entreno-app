@@ -340,7 +340,7 @@ export function pantallaHoy(p, api) {
   // no se puede distinguir de «la pulsera aun no ha volcado a Google Health».
   const gen = p.generado ? new Date(p.generado) : null;
   const hora = gen ? gen.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'desconocida';
-  const estadoBtn = el('p', { class: 'sub', texto:  });
+  const estadoBtn = el('p', { class: 'sub', texto: `Sincronizado el ${hora}. Los pone la pulsera; la app no los toca.` });
   const btnPulsera = el('button', {
     class: 'btn sec', type: 'button', texto: 'Actualizar pulsera',
     onclick: async () => {
