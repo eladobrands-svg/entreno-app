@@ -898,26 +898,75 @@ function pendienteSemanal(puntos, campo) {
   return { n: xs.length, porSemana: den ? (num / den) * 7 : 0, desde: xs[0].fecha, hasta: xs[xs.length - 1].fecha };
 }
 
+/**
+ * Analisis: un menu vertical de tarjetas, cada una con su dato vivo, que abre
+ * su seccion. Sin seccion elegida se ve el menu; dentro, una cabecera con
+ * «volver». El dato de cada tarjeta es el resumen honesto de lo que hay, no
+ * decoracion: si no hay cintura, la tarjeta lo dice.
+ */
 export function pantallaAnalisis(p, api) {
   const v = el('div');
   const a = p.analisis ?? {};
-  const sec = estado.seccionAnalisis ?? 'medidas';
+  const sec = estado.seccionAnalisis ?? null;
+  const ult = (arr) => (arr && arr.length ? arr[arr.length - 1] : null);
+
+  const pe = ult(p.historico.peso); const cu = ult(p.historico.cintura);
+  const ej = Object.values(a.porEjercicio ?? {});
+  const conTend = ej.filter((x) => x.tendencia.estado !== 'sin muestra').length;
+  const ses = a.sesiones ?? [];
+  const sinRpe = ses.filter((s) => s.rpe === null).length;
+  const real = (p.historico.nutricionReal ?? []).slice(-14);
+  const mediaKcal = real.length ? Math.round(real.reduce((x, d) => x + (d.kcal ?? 0), 0) / real.length) : null;
 
   const SECCIONES = [
-    ['medidas', 'Medidas'],
-    ['peso', 'Peso'],
-    ['fuerza', 'Fuerza'],
-    ['sesiones', 'Sesiones'],
-    ['comida', 'Comida'],
+    { id: 'medidas', titulo: 'Medidas', icono: 'i-cuerpo',
+      dato: pe ? `${num(pe.peso, 1)} kg` : '—',
+      pie: cu ? `cintura ${num(cu.cintura, 1)} cm · ${cu.fecha}` : 'cintura sin medir todavía',
+      alerta: !cu },
+    { id: 'peso', titulo: 'Peso', icono: 'i-analisis',
+      dato: pe ? `${num(pe.peso, 1)} kg` : '—',
+      pie: `${(p.historico.peso ?? []).length} pesadas en el histórico` },
+    { id: 'fuerza', titulo: 'Fuerza', icono: 'i-entrenar',
+      dato: `${ej.length} ejercicios`,
+      pie: conTend ? `${conTend} con tendencia` : 'ninguno con 5 sesiones aún',
+      alerta: ej.length > 0 && !conTend },
+    { id: 'sesiones', titulo: 'Sesiones', icono: 'i-folio',
+      dato: `${ses.length} registradas`,
+      pie: sinRpe ? `${sinRpe} sin RPE` : 'todas con RPE',
+      alerta: sinRpe > 0 },
+    { id: 'comida', titulo: 'Comida', icono: 'i-comer',
+      dato: mediaKcal ? `${mediaKcal} kcal` : '—',
+      pie: real.length ? `media de ${real.length} días, FatSecret` : 'sin datos de FatSecret' },
   ];
-  const nav = el('div', { class: 'chips' });
-  for (const [id, et] of SECCIONES) {
-    nav.append(el('button', {
-      class: 'chip', type: 'button', 'aria-pressed': String(id === sec),
-      onclick: () => { estado.seccionAnalisis = id; estado.refrescar?.(); },
-    }, el('span', { texto: et })));
+
+  if (!sec) {
+    const menu = el('div', { class: 'menu-analisis' });
+    for (const s of SECCIONES) {
+      menu.append(el('button', {
+        class: `fila-analisis${s.alerta ? ' alerta' : ''}`, type: 'button',
+        onclick: () => { estado.seccionAnalisis = s.id; estado.refrescar?.(); },
+      }, [
+        el('span', { class: 'fa-icono' }, ic(s.icono)),
+        el('span', { class: 'fa-texto' }, [
+          el('span', { class: 'fa-titulo', texto: s.titulo }),
+          el('span', { class: 'fa-pie', texto: s.pie }),
+        ]),
+        el('span', { class: 'fa-dato', texto: s.dato }),
+        el('span', { class: 'fa-flecha', texto: '›' }),
+      ]));
+    }
+    v.append(menu);
+    return v;
   }
-  v.append(nav);
+
+  const actual = SECCIONES.find((s) => s.id === sec) ?? SECCIONES[0];
+  v.append(el('div', { class: 'cab-seccion' }, [
+    el('button', {
+      class: 'volver', type: 'button', 'aria-label': 'Volver a Análisis',
+      onclick: () => { estado.seccionAnalisis = null; estado.refrescar?.(); },
+    }, el('span', { texto: '‹ Análisis' })),
+    el('h2', { texto: actual.titulo }),
+  ]));
 
   if (sec === 'medidas') v.append(seccionMedidas(p, api));
   else if (sec === 'peso') v.append(seccionPeso(p));

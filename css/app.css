@@ -348,3 +348,36 @@ label.opcion input { width: 22px; height: 22px; flex: none; margin-top: 2px; acc
 #btn-actualizar[data-ocupado="true"] { color: var(--accion); pointer-events: none; }
 #btn-actualizar[data-ocupado="true"] .ic { animation: girar 1s linear infinite; }
 @keyframes girar { to { transform: rotate(360deg); } }
+
+/* ─── Analisis: menu vertical de tarjetas ────────────────────────────────── */
+
+.menu-analisis { display: flex; flex-direction: column; gap: var(--sp-3); }
+.fila-analisis {
+  display: grid; grid-template-columns: 44px 1fr auto 16px; align-items: center; gap: var(--sp-3);
+  width: 100%; min-height: 76px; padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--surface); color: var(--text); text-align: left;
+  font: inherit; cursor: pointer;
+  transition: transform .08s ease, border-color .15s ease;
+}
+.fila-analisis:active { transform: scale(.985); border-color: var(--border-strong); }
+.fila-analisis.alerta { border-left: 3px solid var(--aviso); }
+.fa-icono {
+  width: 44px; height: 44px; display: grid; place-items: center;
+  border-radius: 12px; background: var(--surface-sunk); color: var(--accion);
+}
+.fa-icono .ic { width: 22px; height: 22px; }
+.fa-texto { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fa-titulo { font-weight: 700; font-size: var(--fs-md); letter-spacing: -0.01em; }
+.fa-pie { font-size: var(--fs-xs); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fa-dato { font-weight: 800; font-size: var(--fs-md); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fa-flecha { color: var(--text-faint); font-size: var(--fs-xl); line-height: 1; text-align: right; }
+
+.cab-seccion { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-4); }
+.cab-seccion h2 { margin: 0; font-size: var(--fs-xl); letter-spacing: -0.02em; }
+.cab-seccion .volver {
+  min-height: 36px; padding: 0 var(--sp-3);
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface-2); color: var(--accion);
+  font: inherit; font-size: var(--fs-sm); font-weight: 600; cursor: pointer;
+}

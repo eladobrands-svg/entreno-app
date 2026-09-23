@@ -158,41 +158,42 @@ export async function escribirEnRepo(ruta, texto, mensaje) {
  * sigue es volver a pedir el paquete, que ya traera los datos nuevos.
  */
 export async function actualizarPulsera(onEstado = () => {}) {
-  const c = await config();
-  const base = `/repos/${c.repo}/actions/workflows/pulsera.yml`;
-
-  const antes = Date.now();
+  // Se pide escribiendo un fichero: el push dispara pulsera.yml. Con eso basta
+  // el permiso «Contents» que ya tiene el token; no hace falta «Actions», que
+  // es lo que fallaba con un token fine-grained minimo.
+  const pedido = new Date().toISOString();
+  const antes = await indiceGenerado();
   try {
-    await gh(`${base}/dispatches`, { method: 'POST', body: JSON.stringify({ ref: c.rama }) });
+    await escribirEnRepo('entrada/pulsera/pedir.json',
+      `${JSON.stringify({ pedido, desde: 'app' }, null, 1)}\n`, `app: pedir pulsera ${pedido}`);
   } catch (e) {
-    // Un token fine-grained con solo «Contents» puede leer y escribir ficheros
-    // pero NO disparar un workflow: eso es el permiso «Actions». Sin decirlo
-    // aqui, el boton parece simplemente roto.
     if (e.status === 403 || e.status === 404) {
-      throw new Error('Tu token no puede disparar la sincronización. En GitHub, edita el token y añade el permiso «Actions: Read and write» (además de Contents). Luego vuelve a conectar.');
+      throw new Error('Tu token no puede escribir en el repositorio. Necesita «Contents: Read and write» sobre ENTRENAMIENTO.');
     }
     throw e;
   }
   onEstado('Pedido a GitHub. Suele tardar un minuto…');
 
-  // El dispatch responde 204 sin id de ejecucion: hay que buscar la que acaba
-  // de nacer. Se espera a que aparezca y luego a que termine.
+  // Cuando la sincronizacion termina, republica el paquete: el indice cambia
+  // de fecha de generacion. Eso se puede leer con el mismo permiso, asi que es
+  // la senal de «terminado» sin tocar la API de Actions.
   const inicio = Date.now();
-  let run = null;
-  while (Date.now() - inicio < 200000) {
-    await new Promise((r) => setTimeout(r, 5000));
-    const j = await gh(`${base}/runs?per_page=3&event=workflow_dispatch`);
-    run = (j.workflow_runs ?? []).find((r) => Date.parse(r.created_at) >= antes - 15000) ?? null;
-    if (!run) { onEstado('Esperando a que arranque…'); continue; }
-    if (run.status === 'completed') break;
-    onEstado(run.status === 'queued' ? 'En cola en GitHub…' : 'Trayendo datos de Google Health…');
+  let vueltas = 0;
+  while (Date.now() - inicio < 240000) {
+    await new Promise((r) => setTimeout(r, 8000));
+    vueltas++;
+    let ahora = null;
+    try { ahora = await indiceGenerado(); } catch { /* red floja: se reintenta */ }
+    if (ahora && ahora !== antes && ahora > pedido) return { generado: ahora };
+    onEstado(vueltas < 4 ? 'En cola en GitHub…' : 'Trayendo datos de Google Health…');
   }
-  if (!run) throw new Error('GitHub no ha arrancado el trabajo. Reintenta en un minuto.');
-  if (run.status !== 'completed') throw new Error('Sigue corriendo. Los datos aparecerán en el siguiente arranque.');
-  if (run.conclusion !== 'success') {
-    throw new Error('La sincronización ha fallado en GitHub. Lo más probable: el permiso de Google ha caducado y el PC aún no lo ha renovado.');
-  }
-  return run;
+  throw new Error('Sigue corriendo. Los datos aparecerán en la siguiente actualización.');
+}
+
+async function indiceGenerado() {
+  const c = await config();
+  if (!(c.token && c.repo)) throw new Error('sin-token');
+  return (await leerDelRepo('derivado/app/indice.json')).generado ?? null;
 }
 
 // ---------------------------------------------------------------------------
