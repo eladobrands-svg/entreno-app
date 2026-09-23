@@ -8,7 +8,7 @@ import { estado, pantallaHoy, pantallaEntrenar, pantallaComer, pantallaAnalisis,
 // Se sube a mano en cada despliegue. Sirve para dos cosas: que se vea en
 // Ajustes qué versión está corriendo el móvil (sin eso, «no veo los cambios»
 // es indiagnosticable) y para que el service worker se reinstale.
-export const VERSION = '2026-09-23.14';
+export const VERSION = '2026-09-23.15';
 
 const $ = (s) => document.querySelector(s);
 const vista = $('#vista');
@@ -389,6 +389,14 @@ async function arrancar() {
 if ('serviceWorker' in navigator) {
   // updateViaCache none: que un cambio publicado se vea al siguiente arranque.
   navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).catch(() => {});
+  // Un service worker nuevo pide recargar a todas las pestañas al activarse.
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data?.tipo === 'recargar' && !fin) location.reload();
+  });
 }
+
+// Con la app abierta en primer plano, cada 5 minutos se mira si hay version
+// nueva. iOS no ejecuta esto en segundo plano, pero mientras la miras, si.
+setInterval(() => { if (!fin) D.autoActualizar(VERSION).catch(() => {}); }, 5 * 60 * 1000);
 
 arrancar();

@@ -8,7 +8,7 @@
 // cambio publicado se ve en el siguiente arranque en vez de quedarse pegado,
 // que es lo que el usuario pidio con «cambios en tiempo real».
 
-const CACHE = 'entreno-2026-09-23.14';
+const CACHE = 'entreno-2026-09-23.15';
 const ARMAZON = [
   './',
   './index.html',
@@ -29,6 +29,10 @@ self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     for (const k of await caches.keys()) if (k !== CACHE) await caches.delete(k);
     await self.clients.claim();
+    // Al activarse una version nueva del worker, las pestañas abiertas siguen
+    // ejecutando el JavaScript viejo hasta que recarguen. Se les pide que lo
+    // hagan; la pagina decide (no recarga con un descanso en marcha).
+    for (const c of await self.clients.matchAll({ type: 'window' })) c.postMessage({ tipo: 'recargar' });
   })());
 });
 
