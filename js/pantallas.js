@@ -284,7 +284,7 @@ export function pantallaHoy(p) {
     cambiado
       ? el('p', { class: 'aviso', texto: `El plan decía ${d.titulo ?? d.tipo}. Se registrará lo que hagas de verdad, y la comida del día ya está recalculada.` })
       : null,
-    el('p', { class: 'sub', texto: 'Para cambiarlo, o para ver otro día, ve a Entrenar.' }),
+    el('p', { class: 'sub', texto: 'Para cambiarlo, o para ver otro día, ve a Entreno.' }),
   ));
 
   // — la diana de hoy —
