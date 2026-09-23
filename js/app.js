@@ -8,7 +8,7 @@ import { estado, pantallaHoy, pantallaEntrenar, pantallaComer, pantallaAnalisis,
 // Se sube a mano en cada despliegue. Sirve para dos cosas: que se vea en
 // Ajustes qué versión está corriendo el móvil (sin eso, «no veo los cambios»
 // es indiagnosticable) y para que el service worker se reinstale.
-export const VERSION = '2026-09-23.12';
+export const VERSION = '2026-09-23.13';
 
 const $ = (s) => document.querySelector(s);
 const vista = $('#vista');
@@ -119,7 +119,13 @@ $('#descanso-mas').addEventListener('click', () => {
 // Si el descanso se acabo mientras tanto, se dice, en vez de enseñar 0:00 sin
 // explicar nada.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible' || !fin) return;
+  if (document.visibilityState !== 'visible') return;
+  // Una PWA que vuelve del fondo NO recarga: sin esto, la comprobacion de
+  // version del arranque no volveria a correr nunca y el movil se quedaria con
+  // lo que cargo el primer dia. Si hay descanso en marcha no se recarga: se
+  // perderia el reloj.
+  if (!fin) D.autoActualizar(VERSION).catch(() => {});
+  if (!fin) return;
   if (restan() <= 0) finDescanso(true, true);
   else { pintaDesc(); pedirLock(); }
 });

@@ -8,7 +8,7 @@
 // cambio publicado se ve en el siguiente arranque en vez de quedarse pegado,
 // que es lo que el usuario pidio con Â«cambios en tiempo realÂ».
 
-const CACHE = 'entreno-2026-09-23.12';
+const CACHE = 'entreno-2026-09-23.13';
 const ARMAZON = [
   './',
   './index.html',
@@ -43,7 +43,10 @@ self.addEventListener('fetch', (e) => {
 
   e.respondWith((async () => {
     try {
-      const r = await fetch(e.request);
+      // 'no-cache' = revalidar SIEMPRE con el servidor (ETag). Pages sirve con
+      // max-age=600: sin esto, un modulo roto o viejo se queda 10 minutos aunque
+      // ya este arreglado arriba. Con ETag la respuesta es un 304 de 0 bytes.
+      const r = await fetch(new Request(e.request, { cache: 'no-cache' }));
       if (r.ok) (await caches.open(CACHE)).put(e.request, r.clone());
       return r;
     } catch {
