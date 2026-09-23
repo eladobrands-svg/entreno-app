@@ -377,12 +377,13 @@ const baldosa = (k, v, sub) => el('div', { class: 'baldosa' }, [
 export async function pantallaEntrenar(p, api) {
   const v = el('div');
   const hoy = hoyISO();
-  let ses = await D.sesionEnCurso();
+  const abiertas = await D.sesiones();
 
-  // Si hay una sesion empezada, manda ella: no se puede estar mirando el jueves
-  // con el miercoles a medias.
-  const fecha = ses ? ses.fecha : (estado.diaVisto ?? hoy);
+  // El dia que se esta mirando es libre: se puede ir al jueves con el miercoles
+  // a medias. Cada dia guarda LO SUYO, asi que nada se pierde al navegar.
+  const fecha = estado.diaVisto ?? hoy;
   estado.diaVisto = fecha;
+  const ses = abiertas[fecha] ?? null;
 
   // — la tira de la semana —
   const tira = el('div', { class: 'tira' });
@@ -395,7 +396,7 @@ export async function pantallaEntrenar(p, api) {
       'aria-current': String(d.fecha === fecha),
       'data-hoy': String(d.fecha === hoy),
       'data-tipo': pr.tipo,
-      disabled: !!ses && d.fecha !== fecha,
+      'data-abierta': String(!!abiertas[d.fecha]),
       onclick: () => { estado.diaVisto = d.fecha; estado.refrescar?.(); },
     }, [
       el('span', { class: 'dl', texto: DIAS_CORTOS[i] ?? d.dia.slice(0, 1) }),
@@ -411,6 +412,11 @@ export async function pantallaEntrenar(p, api) {
   const esHoy = fecha === hoy;
 
   v.append(el('p', { class: 'sub', texto: `${dia?.dia ?? ''} ${fecha.slice(8, 10)}${esHoy ? ' · hoy' : ''}` }));
+
+  const otras = Object.keys(abiertas).filter((f) => f !== fecha);
+  if (otras.length) {
+    v.append(el('p', { class: 'aviso', texto: `Tienes otra sesión a medias (${otras.join(', ')}). No se pierde nada: cada día guarda lo suyo y sigue donde lo dejaste.` }));
+  }
 
   // — elegir qué se hace ese día —
   if (!ses) {
@@ -579,7 +585,7 @@ export async function pantallaEntrenar(p, api) {
         }
         ses.fin = new Date().toISOString();
         await D.encolar(ses);
-        await D.cerrarSesion();
+        await D.cerrarSesion(ses.fecha);
         api.aviso('Sesión guardada. Sube sola en cuanto haya señal.');
         estado.refrescar?.();
       },

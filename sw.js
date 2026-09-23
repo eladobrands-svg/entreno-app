@@ -6,9 +6,9 @@
 //
 // Estrategia: red primero para el armazon, cache como red de seguridad. Asi un
 // cambio publicado se ve en el siguiente arranque en vez de quedarse pegado,
-// que es lo que el usuario pidio con «cambios en tiempo real».
+// que es lo que el usuario pidio con Â«cambios en tiempo realÂ».
 
-const CACHE = 'entreno-v1';
+const CACHE = 'entreno-2026-09-23.6';
 const ARMAZON = [
   './',
   './index.html',
@@ -38,6 +38,8 @@ self.addEventListener('fetch', (e) => {
   // La API de GitHub nunca se cachea: un dato viejo disfrazado de fresco es peor
   // que no tener dato.
   if (url.host !== self.location.host) return;
+  // version.json manda la auto-actualizacion: si se cachea, no hay actualizacion.
+  if (url.pathname.endsWith('/version.json')) return;
 
   e.respondWith((async () => {
     try {

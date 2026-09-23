@@ -154,9 +154,31 @@ export async function escribirEnRepo(ruta, texto, mensaje) {
  * Nunca falla por no tener red: si hay copia, se usa la copia y se dice desde
  * cuando es. Un dato viejo etiquetado es util; uno viejo disfrazado de fresco, no.
  */
+/**
+ * El paquete de la semana, SIEMPRE al día.
+ *
+ * Primero se mira el índice, que pesa 130 bytes: dice qué semana es la actual y
+ * cuándo se generó. Si algo cambió —plan nuevo del domingo, sesión ingerida por
+ * Actions, cargas recalculadas— se baja el paquete entero antes de pintar. Si no
+ * cambió, se usa la copia y no se gasta ni una petición de más.
+ *
+ * Sin red se usa la copia y se dice que es copia. Un dato viejo etiquetado sirve;
+ * uno viejo disfrazado de fresco, no.
+ */
 export async function paquete({ forzarRed = false } = {}) {
   const cache = await get('paquete');
-  if (cache && !forzarRed) { refrescarEnSegundoPlano(); return { ...cache, _origen: 'cache' }; }
+
+  if (cache && !forzarRed) {
+    if (!navigator.onLine) return { ...cache, _origen: 'cache' };
+    try {
+      const idx = await indice();
+      const alDia = idx.semanaActual === cache.semana?.iso && idx.generado === cache._indice;
+      if (alDia) return { ...cache, _origen: 'cache' };
+    } catch {
+      return { ...cache, _origen: 'cache' };       // sin red: la copia vale
+    }
+  }
+
   try {
     const p = await descargarPaquete();
     await set('paquete', p);
@@ -167,26 +189,55 @@ export async function paquete({ forzarRed = false } = {}) {
   }
 }
 
-async function descargarPaquete() {
+async function indice() {
   const c = await config();
-  if (c.token && c.repo) {
-    const idx = await leerDelRepo('derivado/app/indice.json');
-    return leerDelRepo(`derivado/app/${idx.semanaActual}.json`);
-  }
-  // Modo local: la app servida desde el repo, sin token. Para construir y probar.
-  const idx = await (await fetch('../derivado/app/indice.json', { cache: 'no-store' })).json();
-  return (await fetch(`../derivado/app/${idx.semanaActual}.json`, { cache: 'no-store' })).json();
+  if (c.token && c.repo) return leerDelRepo('derivado/app/indice.json');
+  return (await fetch('../derivado/app/indice.json', { cache: 'no-store' })).json();
 }
 
-let refrescando = false;
-function refrescarEnSegundoPlano() {
-  if (refrescando || !navigator.onLine) return;
-  refrescando = true;
-  descargarPaquete()
-    .then((p) => set('paquete', p))
-    .catch(() => {})
-    .finally(() => { refrescando = false; });
+async function descargarPaquete() {
+  const c = await config();
+  const idx = await indice();
+  const p = (c.token && c.repo)
+    ? await leerDelRepo(`derivado/app/${idx.semanaActual}.json`)
+    // Modo local: la app servida desde el repo, sin token. Para construir y probar.
+    : await (await fetch(`../derivado/app/${idx.semanaActual}.json`, { cache: 'no-store' })).json();
+  p._indice = idx.generado;                        // la huella con la que se compara
+  return p;
 }
+
+/**
+ * ¿Hay una versión nueva de la app publicada?
+ *
+ * version.json se pide siempre saltándose la caché. Si no coincide con la que
+ * está corriendo, se borran las cachés y se recarga UNA vez. Sin esto, un móvil
+ * con la app instalada puede quedarse meses con una versión vieja y no hay forma
+ * de saberlo desde fuera.
+ */
+export async function autoActualizar(versionActual) {
+  if (!navigator.onLine) return false;
+  let remota;
+  try {
+    const r = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!r.ok) return false;
+    remota = (await r.json()).version;
+  } catch { return false; }
+  if (!remota || remota === versionActual) return false;
+
+  // Candado: si tras recargar sigue sin coincidir, no se entra en bucle.
+  try {
+    if (sessionStorage.getItem('recargadoPara') === remota) return false;
+    sessionStorage.setItem('recargadoPara', remota);
+  } catch { /* sin sessionStorage se recarga una vez y ya */ }
+
+  try {
+    for (const k of await caches.keys()) await caches.delete(k);
+    for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+  } catch { /* da igual: la recarga ya trae lo nuevo */ }
+  location.reload();
+  return true;
+}
+
 
 // ---------------------------------------------------------------------------
 // La cola de salida
@@ -246,9 +297,41 @@ addEventListener('online', () => vaciar());
 // La sesion en curso
 // ---------------------------------------------------------------------------
 
-export const sesionEnCurso = () => get('sesion');
-export const guardarSesion = (s) => set('sesion', s);
-export const cerrarSesion = () => del('sesion');
+/**
+ * Las sesiones abiertas van por FECHA, no una sola.
+ *
+ * Así se puede mirar el jueves con el miércoles a medias sin perder una serie:
+ * cada día guarda lo suyo y se recupera al volver. Antes había una única clave
+ * 'sesion' y navegar a otro día la habría pisado.
+ */
+const TODAS = 'sesiones';
+
+export async function sesiones() { return (await get(TODAS)) ?? {}; }
+export async function sesionEnCurso(fecha) {
+  const t = await sesiones();
+  if (fecha) return t[fecha] ?? null;
+  // Sin fecha: la que esté abierta, si solo hay una.
+  const abiertas = Object.values(t);
+  return abiertas.length === 1 ? abiertas[0] : null;
+}
+export async function guardarSesion(s) {
+  const t = await sesiones();
+  t[s.fecha] = s;
+  return set(TODAS, t);
+}
+export async function cerrarSesion(fecha) {
+  const t = await sesiones();
+  delete t[fecha];
+  return set(TODAS, t);
+}
+
+/** Migración desde la clave única antigua. Se hace una vez y en silencio. */
+export async function migrarSesionVieja() {
+  const vieja = await get('sesion');
+  if (!vieja?.fecha) return;
+  await guardarSesion(vieja);
+  await del('sesion');
+}
 
 export function nuevoId(prefijo) {
   const t = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, '');

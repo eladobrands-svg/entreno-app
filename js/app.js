@@ -5,17 +5,22 @@
 import * as D from './datos.js';
 import { estado, pantallaHoy, pantallaEntrenar, pantallaComer, pantallaAnalisis, pantallaSemana } from './pantallas.js';
 
+// Se sube a mano en cada despliegue. Sirve para dos cosas: que se vea en
+// Ajustes qué versión está corriendo el móvil (sin eso, «no veo los cambios»
+// es indiagnosticable) y para que el service worker se reinstale.
+export const VERSION = '2026-09-23.6';
+
 const $ = (s) => document.querySelector(s);
 const vista = $('#vista');
 
-// ─── hoja inferior ──────────────────────────────────────────────────────────
+// ������ hoja inferior ��������������������������������������������������������������������������������������������������������������������
 
 const hoja = $('#hoja'); const hojaCuerpo = $('#hoja-cuerpo');
 function abrirHoja(nodo) { hojaCuerpo.replaceChildren(nodo); hoja.hidden = false; }
 function cerrarHoja() { hoja.hidden = true; hojaCuerpo.replaceChildren(); }
 hoja.addEventListener('click', (e) => { if (e.target === hoja) cerrarHoja(); });
 
-// ─── avisos ─────────────────────────────────────────────────────────────────
+// ������ avisos ����������������������������������������������������������������������������������������������������������������������������������
 
 function aviso(texto) {
   const n = document.createElement('div');
@@ -31,7 +36,7 @@ function aviso(texto) {
   setTimeout(() => n.remove(), 4200);
 }
 
-// ─── cronometro de descanso ─────────────────────────────────────────────────
+// ������ cronometro de descanso ��������������������������������������������������������������������������������������������������
 //
 // Wake Lock para que la pantalla no se apague entre series. En Safari funciona
 // desde iOS 16.4, pero DENTRO de una PWA instalada estuvo roto hasta iOS 18.4:
@@ -180,7 +185,7 @@ function pitido() {
   } catch { /* sin audio: el reloj ya llego a cero en pantalla */ }
 }
 
-// ─── estado de sincronizacion ───────────────────────────────────────────────
+// ������ estado de sincronizacion ����������������������������������������������������������������������������������������������
 
 const chip = $('#estado-sync'); const chipN = $('#pendientes');
 async function pintaSync(n) {
@@ -226,6 +231,7 @@ function pantallaAjustes() {
       <div class="paso" style="margin-top:8px"><input id="c-rama" autocapitalize="off" spellcheck="false"></div>
     </details>
     <p id="c-estado" class="sub"></p>
+    <p class="sub">Versión ${VERSION}. Se actualiza sola al abrir.</p>
   `;
   const estadoTxt = wrap.querySelector('#c-estado');
   const guardar = document.createElement('button');
@@ -237,7 +243,7 @@ function pantallaAjustes() {
     const token = wrap.querySelector('#c-token').value.replace(/[^\x21-\x7e]/g, '');
     if (!token) { estadoTxt.textContent = 'Falta el token.'; return; }
     guardar.disabled = true;
-    estadoTxt.textContent = 'Comprobando…';
+    estadoTxt.textContent = 'Comprobando⬦';
 
     const anterior = await D.config();
     const nueva = {
@@ -282,7 +288,7 @@ function pantallaAjustes() {
   return wrap;
 }
 
-// ─── router ─────────────────────────────────────────────────────────────────
+// ������ router ����������������������������������������������������������������������������������������������������������������������������������
 
 const api = { hoja: abrirHoja, cerrarHoja, aviso, descanso };
 let tab = 'hoy';
@@ -323,7 +329,7 @@ async function pinta() {
 
 estado.refrescar = pinta;
 
-// ─── arranque ───────────────────────────────────────────────────────────────
+// ������ arranque ������������������������������������������������������������������������������������������������������������������������������
 
 /**
  * Traspaso de configuracion por URL: #config=<base64 de {repo,token,rama}>.
@@ -350,6 +356,12 @@ async function configDesdeUrl() {
 }
 
 async function arrancar() {
+  // Lo PRIMERO: si hay una versión nueva publicada, se recarga sola. Sin esto
+  // un móvil con la app instalada puede quedarse meses con una versión vieja y
+  // desde fuera no hay forma de saberlo.
+  if (await D.autoActualizar(VERSION)) return;
+  await D.migrarSesionVieja();
+
   const reciente = await configDesdeUrl();
   await pintaSync();
   estado.eleccion = (await D.get('eleccion')) ?? {};
