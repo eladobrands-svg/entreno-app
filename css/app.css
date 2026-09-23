@@ -323,3 +323,15 @@ label.opcion input { width: 22px; height: 22px; flex: none; margin-top: 2px; acc
  * estrecho: se dejan envolver y se aprieta un poco la letra. */
 .btn-fila { flex-wrap: wrap; }
 .btn-fila .btn { flex: 1 1 30%; min-width: 92px; font-size: var(--fs-sm); padding-left: var(--sp-2); padding-right: var(--sp-2); }
+
+/* ─── Comido contra diana ────────────────────────────────────────────────── */
+
+.kcal { margin: var(--sp-3) 0; }
+.kcal-linea { display: flex; align-items: baseline; gap: var(--sp-2); flex-wrap: wrap; }
+.kcal-resto { margin-left: auto; font-weight: 700; color: var(--ok); font-variant-numeric: tabular-nums; }
+.kcal-resto.pasado { color: var(--fallo); }
+.kcal-barra { height: 10px; margin-top: var(--sp-2); border-radius: 999px; background: var(--surface-sunk); overflow: hidden; }
+.kcal-relleno { height: 100%; border-radius: 999px; background: var(--nutricion); transition: width .4s ease; }
+.kcal-relleno.pasado { background: var(--fallo); }
+.kcal-macros { display: flex; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-2); }
+.kcal-macro { font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }

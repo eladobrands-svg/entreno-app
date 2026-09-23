@@ -8,7 +8,7 @@ import { estado, pantallaHoy, pantallaEntrenar, pantallaComer, pantallaAnalisis,
 // Se sube a mano en cada despliegue. Sirve para dos cosas: que se vea en
 // Ajustes qué versión está corriendo el móvil (sin eso, «no veo los cambios»
 // es indiagnosticable) y para que el service worker se reinstale.
-export const VERSION = '2026-09-23.13';
+export const VERSION = '2026-09-23.14';
 
 const $ = (s) => document.querySelector(s);
 const vista = $('#vista');

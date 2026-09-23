@@ -287,7 +287,7 @@ export function pantallaHoy(p, api) {
     el('p', { class: 'sub', texto: 'Para cambiarlo, o para ver otro día, ve a Entreno.' }),
   ));
 
-  // — la diana de hoy —
+  // — la diana de hoy, y cuánto llevas comido contra ella —
   const dd = dianas(p);
   const hoyDiana = dd?.dias.find((x) => x.fecha === fecha);
   const publicadaHoy = (p.nutricion.orientacion.publicado ?? []).find((x) => x.fecha === fecha)?.kcal;
@@ -295,10 +295,12 @@ export function pantallaHoy(p, api) {
     const m = p.nutricion.orientacion.macros;
     const macros = m ? macrosDe(hoyDiana.kcal, m) : null;
     const delta = publicadaHoy ? hoyDiana.kcal - publicadaHoy : 0;
+    const comido = (p.historico.nutricionReal ?? []).find((x) => x.fecha === fecha) ?? null;
     v.append(tarjeta(
       el('h2', { texto: 'Comer hoy' }),
       el('p', { class: 'grande mono', texto: `${hoyDiana.kcal} kcal` }),
       delta ? el('p', { class: 'muted', texto: `${delta > 0 ? '+' : ''}${delta} respecto a las ${publicadaHoy} del plan` }) : null,
+      barraKcal(comido?.kcal ?? null, hoyDiana.kcal, macros, comido),
       macros ? el('div', { class: 'rejilla' }, [
         baldosa('P', `${macros.proteina} g`, 'fijo'),
         baldosa('C', `${macros.carbos} g`, 'cicla'),
@@ -384,6 +386,41 @@ export function pantallaHoy(p, api) {
       : el('p', { class: 'sub', texto: 'No falta nada por registrar hoy.' }),
   ));
   return v;
+}
+
+/**
+ * Comido contra diana, con lo que queda o lo que sobra en CANTIDAD, no en %.
+ * «Te faltan 340 kcal» se entiende con la barra cargada delante; «84 %», no.
+ * Sin dato de FatSecret se dice que no hay dato: la barra vacia no es «0 kcal».
+ */
+function barraKcal(comido, diana, macros, comidoObj) {
+  if (comido === null || !diana) {
+    return el('p', { class: 'sub', texto: 'Lo comido llega por FatSecret cuando se sincroniza la pulsera.' });
+  }
+  const resto = diana - comido;
+  const pct = Math.min(100, Math.round((comido / diana) * 100));
+  const pasado = resto < 0;
+  const w = el('div', { class: 'kcal-barra' }, [
+    el('div', { class: `kcal-relleno${pasado ? ' pasado' : ''}`, style: `width:${pct}%` }),
+  ]);
+  const linea = el('div', { class: 'kcal-linea' }, [
+    el('span', { class: 'mediano mono', texto: `${comido}` }),
+    el('span', { class: 'sub', texto: ` de ${diana} kcal` }),
+    el('span', { class: `kcal-resto${pasado ? ' pasado' : ''}`, texto: pasado ? `+${-resto} de más` : `quedan ${resto}` }),
+  ]);
+  const wrap = el('div', { class: 'kcal' }, [linea, w]);
+  if (macros && comidoObj) {
+    const fila = (k, real, obj) => {
+      const d = real - obj;
+      return el('span', { class: 'kcal-macro', texto: `${k} ${real}/${obj} g${Math.abs(d) >= 10 ? ` (${d > 0 ? '+' : ''}${d})` : ''}` });
+    };
+    wrap.append(el('div', { class: 'kcal-macros' }, [
+      fila('P', comidoObj.proteina ?? 0, macros.proteina),
+      fila('C', comidoObj.carbos ?? 0, macros.carbos),
+      fila('G', comidoObj.grasa ?? 0, macros.grasa),
+    ]));
+  }
+  return wrap;
 }
 
 const baldosa = (k, v, sub) => el('div', { class: 'baldosa' }, [

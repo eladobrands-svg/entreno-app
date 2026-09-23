@@ -6,9 +6,9 @@
 //
 // Estrategia: red primero para el armazon, cache como red de seguridad. Asi un
 // cambio publicado se ve en el siguiente arranque en vez de quedarse pegado,
-// que es lo que el usuario pidio con Â«cambios en tiempo realÂ».
+// que es lo que el usuario pidio con «cambios en tiempo real».
 
-const CACHE = 'entreno-2026-09-23.13';
+const CACHE = 'entreno-2026-09-23.14';
 const ARMAZON = [
   './',
   './index.html',

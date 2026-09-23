@@ -162,7 +162,17 @@ export async function actualizarPulsera(onEstado = () => {}) {
   const base = `/repos/${c.repo}/actions/workflows/pulsera.yml`;
 
   const antes = Date.now();
-  await gh(`${base}/dispatches`, { method: 'POST', body: JSON.stringify({ ref: c.rama }) });
+  try {
+    await gh(`${base}/dispatches`, { method: 'POST', body: JSON.stringify({ ref: c.rama }) });
+  } catch (e) {
+    // Un token fine-grained con solo «Contents» puede leer y escribir ficheros
+    // pero NO disparar un workflow: eso es el permiso «Actions». Sin decirlo
+    // aqui, el boton parece simplemente roto.
+    if (e.status === 403 || e.status === 404) {
+      throw new Error('Tu token no puede disparar la sincronización. En GitHub, edita el token y añade el permiso «Actions: Read and write» (además de Contents). Luego vuelve a conectar.');
+    }
+    throw e;
+  }
   onEstado('Pedido a GitHub. Suele tardar un minuto…');
 
   // El dispatch responde 204 sin id de ejecucion: hay que buscar la que acaba
