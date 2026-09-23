@@ -336,7 +336,11 @@ export function pantallaHoy(p, api) {
 
   // — el resto de la pulsera, y el boton para traerla sin PC —
   const s = ult(p.historico.sueno); const pe = ult(p.historico.peso);
-  const estadoBtn = el('p', { class: 'sub', texto: 'Los pone la pulsera. La app no los toca.' });
+  // La hora de la ultima sincronizacion, visible: sin esto «no esta actualizada»
+  // no se puede distinguir de «la pulsera aun no ha volcado a Google Health».
+  const gen = p.generado ? new Date(p.generado) : null;
+  const hora = gen ? gen.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'desconocida';
+  const estadoBtn = el('p', { class: 'sub', texto:  });
   const btnPulsera = el('button', {
     class: 'btn sec', type: 'button', texto: 'Actualizar pulsera',
     onclick: async () => {
