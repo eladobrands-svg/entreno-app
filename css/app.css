@@ -318,3 +318,8 @@ label.opcion input { width: 22px; height: 22px; flex: none; margin-top: 2px; acc
 #cabecera .cab-txt { min-width: 0; }
 #cabecera #titulo, #cabecera .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #btn-semana { padding: 0 var(--sp-2); }
+
+/* Tres botones (+ serie, − serie, No lo hago) no caben a 16 px en un movil
+ * estrecho: se dejan envolver y se aprieta un poco la letra. */
+.btn-fila { flex-wrap: wrap; }
+.btn-fila .btn { flex: 1 1 30%; min-width: 92px; font-size: var(--fs-sm); padding-left: var(--sp-2); padding-right: var(--sp-2); }

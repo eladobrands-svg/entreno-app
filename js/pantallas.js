@@ -526,6 +526,11 @@ export async function pantallaEntrenar(p, api) {
 
     e.series.forEach((s, iS) => t.append(filaSerie(p, ses, e, s, iE, iS, api)));
 
+    // Quitar la última serie. Si tiene datos o está marcada, se pregunta: una
+    // serie registrada es un dato, y un dato no se borra por un toque de más.
+    const ultima = e.series[e.series.length - 1];
+    const tieneDatos = !!ultima && (ultima.completada || ultima.reps !== null || ultima.nota);
+
     t.append(el('div', { class: 'btn-fila' }, [
       el('button', {
         class: 'btn sec', type: 'button', texto: '+ serie',
@@ -536,6 +541,23 @@ export async function pantallaEntrenar(p, api) {
             reps: ant?.reps ?? null, carga: { ...(ant?.carga ?? { valor: null, unidad: 'kg', modo: 'externa' }) },
             rpe: null, descansoSeg: null, completada: false, nota: '',
           });
+          await D.guardarSesion(ses); estado.refrescar?.();
+        },
+      }),
+      el('button', {
+        class: 'btn sec', type: 'button', texto: '− serie',
+        disabled: e.series.length <= 1,
+        title: e.series.length <= 1 ? 'Para no hacer el ejercicio, usa «No lo hago»' : 'Quita la última serie',
+        onclick: async () => {
+          if (tieneDatos) {
+            const q = ultima.completada
+              ? `La serie ${ultima.n} está marcada como hecha${ultima.reps ? ` (${ultima.reps} reps)` : ''}. ¿La quito igual?`
+              : `La serie ${ultima.n} tiene datos escritos. ¿La quito igual?`;
+            if (!confirm(q)) return;
+          }
+          e.series.pop();
+          // Renumerar, o la tabla de la sesión saldría con huecos en «Serie».
+          e.series.forEach((s, i) => { s.n = i + 1; });
           await D.guardarSesion(ses); estado.refrescar?.();
         },
       }),
