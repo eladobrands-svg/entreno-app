@@ -1,0 +1,215 @@
+// app/js/datos.js
+//
+// Todo lo que entra y sale. Tres ideas y ninguna mas:
+//
+//   1. El movil es una COLA, no un archivo. iOS rechaza storage.persist(), asi
+//      que nada vive aqui de forma definitiva: se escribe y se empuja en cuanto
+//      hay senal. Lo definitivo esta en GitHub y en el PC.
+//   2. Nada de lo que se toca durante una sesion necesita red. El paquete de la
+//      semana se cachea entero; la sesion se guarda local a cada serie.
+//   3. Una serie cerrada no se pierde aunque se cierre la app de golpe.
+
+const DB = 'entreno';
+const VER = 1;
+
+let _db = null;
+export function abrir() {
+  if (_db) return _db;
+  _db = new Promise((ok, err) => {
+    const q = indexedDB.open(DB, VER);
+    q.onupgradeneeded = () => {
+      const db = q.result;
+      if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
+      if (!db.objectStoreNames.contains('cola')) db.createObjectStore('cola', { keyPath: 'id' });
+    };
+    q.onsuccess = () => ok(q.result);
+    q.onerror = () => err(q.error);
+  });
+  return _db;
+}
+
+async function tx(store, modo, fn) {
+  const db = await abrir();
+  return new Promise((ok, err) => {
+    const t = db.transaction(store, modo);
+    const r = fn(t.objectStore(store));
+    // OJO con el '??' aqui: cuando la clave no existe, r.result es undefined, y
+    // 'r?.result ?? r' devolveria el propio IDBRequest, que es truthy. Eso hacia
+    // pasar por paquete cacheado un objeto que no lo era.
+    t.oncomplete = () => ok(r && typeof r === 'object' && 'result' in r ? r.result : r);
+    t.onerror = () => err(t.error);
+  });
+}
+
+export const get = (k) => tx('kv', 'readonly', (s) => s.get(k));
+export const set = (k, v) => tx('kv', 'readwrite', (s) => s.put(v, k));
+export const del = (k) => tx('kv', 'readwrite', (s) => s.delete(k));
+
+// ---------------------------------------------------------------------------
+// Configuracion: el token vive SOLO aqui, en este movil. Nunca viaja.
+// ---------------------------------------------------------------------------
+
+export async function config() {
+  return (await get('config')) ?? { repo: null, token: null, rama: 'master' };
+}
+export const guardarConfig = (c) => set('config', c);
+
+// ---------------------------------------------------------------------------
+// GitHub
+// ---------------------------------------------------------------------------
+
+const API = 'https://api.github.com';
+
+async function gh(ruta, opciones = {}) {
+  const c = await config();
+  if (!c.token || !c.repo) throw new Error('sin-token');
+  const r = await fetch(`${API}${ruta}`, {
+    ...opciones,
+    headers: {
+      Authorization: `Bearer ${c.token}`,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      ...(opciones.body ? { 'Content-Type': 'application/json' } : {}),
+      ...opciones.headers,
+    },
+  });
+  if (!r.ok) {
+    const t = await r.text().catch(() => '');
+    throw new Error(`GitHub ${r.status}: ${t.slice(0, 200)}`);
+  }
+  return r.json();
+}
+
+const b64 = (s) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
+const deB64 = (s) => new TextDecoder().decode(Uint8Array.from(atob(s), (c) => c.charCodeAt(0)));
+
+export async function leerDelRepo(ruta) {
+  const c = await config();
+  const j = await gh(`/repos/${c.repo}/contents/${ruta}?ref=${c.rama}`);
+  return JSON.parse(deB64(j.content));
+}
+
+export async function escribirEnRepo(ruta, texto, mensaje) {
+  const c = await config();
+  let sha;
+  try {
+    sha = (await gh(`/repos/${c.repo}/contents/${ruta}?ref=${c.rama}`)).sha;
+  } catch { /* no existe: es un alta */ }
+  return gh(`/repos/${c.repo}/contents/${ruta}`, {
+    method: 'PUT',
+    body: JSON.stringify({ message: mensaje, content: b64(texto), branch: c.rama, ...(sha ? { sha } : {}) }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// El paquete de la semana
+// ---------------------------------------------------------------------------
+
+/**
+ * En desarrollo (servido desde el propio repo) se lee el fichero de al lado.
+ * En el movil se lee de GitHub. Si no hay red, el que este cacheado.
+ *
+ * Nunca falla por no tener red: si hay copia, se usa la copia y se dice desde
+ * cuando es. Un dato viejo etiquetado es util; uno viejo disfrazado de fresco, no.
+ */
+export async function paquete({ forzarRed = false } = {}) {
+  const cache = await get('paquete');
+  if (cache && !forzarRed) { refrescarEnSegundoPlano(); return { ...cache, _origen: 'cache' }; }
+  try {
+    const p = await descargarPaquete();
+    await set('paquete', p);
+    return { ...p, _origen: 'red' };
+  } catch (e) {
+    if (cache) return { ...cache, _origen: 'cache', _errorRed: e.message };
+    throw e;
+  }
+}
+
+async function descargarPaquete() {
+  const c = await config();
+  if (c.token && c.repo) {
+    const idx = await leerDelRepo('derivado/app/indice.json');
+    return leerDelRepo(`derivado/app/${idx.semanaActual}.json`);
+  }
+  // Modo local: la app servida desde el repo, sin token. Para construir y probar.
+  const idx = await (await fetch('../derivado/app/indice.json', { cache: 'no-store' })).json();
+  return (await fetch(`../derivado/app/${idx.semanaActual}.json`, { cache: 'no-store' })).json();
+}
+
+let refrescando = false;
+function refrescarEnSegundoPlano() {
+  if (refrescando || !navigator.onLine) return;
+  refrescando = true;
+  descargarPaquete()
+    .then((p) => set('paquete', p))
+    .catch(() => {})
+    .finally(() => { refrescando = false; });
+}
+
+// ---------------------------------------------------------------------------
+// La cola de salida
+// ---------------------------------------------------------------------------
+
+const listeners = new Set();
+export const alCambiarCola = (fn) => { listeners.add(fn); return () => listeners.delete(fn); };
+const avisar = async () => { const n = await pendientes(); for (const f of listeners) f(n); };
+
+export const pendientes = () => tx('cola', 'readonly', (s) => s.count());
+export const colaEntera = () => tx('cola', 'readonly', (s) => s.getAll());
+
+/** Encola un sobre. La ruta es donde acabara dentro del repo. */
+export async function encolar(sobre) {
+  const mes = (sobre.fecha ?? new Date().toISOString().slice(0, 10)).slice(0, 7);
+  const ruta = `entrada/app/${mes}/${sobre.id}.json`;
+  await tx('cola', 'readwrite', (s) => s.put({ id: sobre.id, ruta, sobre, intentos: 0 }));
+  await avisar();
+  vaciar();
+  return ruta;
+}
+
+let vaciando = false;
+/**
+ * Empuja lo pendiente. Se llama al arrancar, al volver la red y tras cada
+ * sobre. Un fallo NO borra nada: se reintenta a la siguiente.
+ */
+export async function vaciar() {
+  if (vaciando || !navigator.onLine) return { subidos: 0, quedan: await pendientes() };
+  const c = await config();
+  if (!c.token || !c.repo) return { subidos: 0, quedan: await pendientes(), motivo: 'sin-token' };
+
+  vaciando = true;
+  let subidos = 0;
+  try {
+    for (const item of await colaEntera()) {
+      try {
+        await escribirEnRepo(item.ruta, `${JSON.stringify(item.sobre, null, 1)}\n`,
+          `app: ${item.sobre.esquema} ${item.sobre.id}`);
+        await tx('cola', 'readwrite', (s) => s.delete(item.id));
+        subidos++;
+      } catch (e) {
+        // Se queda en la cola con la cuenta de intentos. No se pierde.
+        await tx('cola', 'readwrite', (s) => s.put({ ...item, intentos: item.intentos + 1, ultimoError: e.message }));
+      }
+    }
+  } finally {
+    vaciando = false;
+    await avisar();
+  }
+  return { subidos, quedan: await pendientes() };
+}
+
+addEventListener('online', () => vaciar());
+
+// ---------------------------------------------------------------------------
+// La sesion en curso
+// ---------------------------------------------------------------------------
+
+export const sesionEnCurso = () => get('sesion');
+export const guardarSesion = (s) => set('sesion', s);
+export const cerrarSesion = () => del('sesion');
+
+export function nuevoId(prefijo) {
+  const t = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, '');
+  const r = Math.random().toString(16).slice(2, 6);
+  return `${prefijo}_${t}_${r}`;
+}

@@ -1,0 +1,263 @@
+/* app/css/app.css
+ *
+ * Todos los colores salen de tokens.css. Aqui no hay ni un literal.
+ *
+ * Reglas del sitio donde se usa esto: de pie, con una mano, con las manos
+ * sudadas y a veces con la luz de un gimnasio. Por eso:
+ *   - nada tocable mide menos de var(--touch)
+ *   - los numeros que se leen de un vistazo son grandes de verdad
+ *   - oscuro por defecto: a las 7 de la manana un fondo blanco ciega
+ */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--fs-md);
+  line-height: 1.45;
+  /* el hueco de la barra inferior + el area segura del iPhone */
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  overscroll-behavior-y: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ─── Cabecera ───────────────────────────────────────────────────────────── */
+
+#cabecera {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
+  padding: calc(var(--sp-3) + env(safe-area-inset-top)) var(--sp-4) var(--sp-3);
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: saturate(180%) blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+#titulo { margin: 0; font-size: var(--fs-lg); font-weight: 700; letter-spacing: -0.02em; }
+.sub { margin: 0; color: var(--text-muted); font-size: var(--fs-sm); }
+
+.chip-sync {
+  display: inline-flex; align-items: center; gap: var(--sp-1);
+  min-height: 32px; padding: 0 var(--sp-3);
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface-2); color: var(--text-muted);
+  font: inherit; font-size: var(--fs-xs); cursor: pointer;
+}
+.chip-sync[data-estado="pendiente"] { color: var(--aviso); border-color: var(--aviso); }
+.chip-sync[data-estado="ok"]        { color: var(--ok); }
+.chip-sync[data-estado="sin-token"] { color: var(--fallo); border-color: var(--fallo); }
+
+/* ─── Contenido ──────────────────────────────────────────────────────────── */
+
+#vista { padding: var(--sp-4); max-width: 640px; margin: 0 auto; }
+
+.tarjeta {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--sp-4);
+  margin-bottom: var(--sp-3);
+}
+.tarjeta.sunk { background: var(--surface-sunk); }
+
+h2 { margin: 0 0 var(--sp-2); font-size: var(--fs-md); font-weight: 700; letter-spacing: -0.01em; }
+h3 { margin: var(--sp-4) 0 var(--sp-2); font-size: var(--fs-sm); font-weight: 700;
+     text-transform: uppercase; letter-spacing: .06em; color: var(--text-faint); }
+p  { margin: 0 0 var(--sp-2); }
+p:last-child { margin-bottom: 0; }
+
+.grande { font-size: var(--fs-2xl); font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; }
+.mediano { font-size: var(--fs-xl); font-weight: 700; letter-spacing: -0.02em; }
+.mono { font-variant-numeric: tabular-nums; font-family: var(--font-mono); }
+.faint { color: var(--text-faint); }
+.muted { color: var(--text-muted); }
+
+/* ─── Chips de seleccion (elegir la sesion del dia) ──────────────────────── */
+
+.chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.chip {
+  min-height: var(--touch); padding: 0 var(--sp-4);
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface-2); color: var(--text);
+  font: inherit; font-size: var(--fs-sm); font-weight: 600; cursor: pointer;
+}
+.chip[aria-pressed="true"] {
+  background: var(--accion); border-color: var(--accion); color: var(--accion-text);
+}
+.chip .pista { font-weight: 400; color: var(--text-faint); font-size: var(--fs-xs); }
+.chip[aria-pressed="true"] .pista { color: var(--accion-text); opacity: .8; }
+
+/* ─── Botones ────────────────────────────────────────────────────────────── */
+
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  width: 100%; min-height: var(--touch); padding: var(--sp-3) var(--sp-4);
+  border: 1px solid transparent; border-radius: var(--radius);
+  background: var(--accion); color: var(--accion-text);
+  font: inherit; font-weight: 700; cursor: pointer;
+}
+.btn:active { transform: scale(.985); }
+.btn.sec { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+.btn.peligro { background: transparent; color: var(--fallo); border-color: var(--fallo); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-fila { display: flex; gap: var(--sp-2); }
+
+/* ─── Series: la fila que se toca cien veces por sesion ──────────────────── */
+
+.ejercicio-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); }
+.ejercicio-cab .btn-info {
+  flex: none; width: var(--touch); height: var(--touch); padding: 0;
+  display: grid; place-items: center;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface-2); color: var(--text-muted); cursor: pointer;
+}
+
+.prescrito {
+  display: inline-flex; gap: var(--sp-2); flex-wrap: wrap;
+  margin-top: var(--sp-1); color: var(--entreno); font-size: var(--fs-sm); font-weight: 600;
+}
+.ultima-vez {
+  margin-top: var(--sp-2); padding: var(--sp-2) var(--sp-3);
+  background: var(--surface-sunk); border-radius: var(--radius-sm);
+  font-size: var(--fs-sm); color: var(--text-muted);
+}
+
+.serie {
+  display: grid; grid-template-columns: 1.6rem 1fr 1fr var(--touch);
+  align-items: center; gap: var(--sp-2);
+  padding: var(--sp-2) 0; border-top: 1px solid var(--border);
+}
+.serie.hecha { opacity: .55; }
+.serie .n { color: var(--text-faint); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.serie.calent .n { color: var(--aviso); }
+
+.paso { display: flex; align-items: center; border: 1px solid var(--border);
+        border-radius: var(--radius); background: var(--surface-2); overflow: hidden; }
+.serie.cabecera { padding-bottom: 0; border-top: 1px solid var(--border); }
+.serie.cabecera .col {
+  text-align: center; font-size: var(--fs-xs); font-weight: 600;
+  color: var(--text-faint); text-transform: uppercase; letter-spacing: .05em;
+}
+
+.paso button {
+  flex: none; width: 32px; height: var(--touch); padding: 0;
+  display: grid; place-items: center;
+  background: transparent; border: 0; color: var(--text-muted); cursor: pointer;
+}
+.paso button:active { background: var(--surface-sunk); }
+.paso input {
+  flex: 1; width: 100%; min-width: 0; height: var(--touch);
+  border: 0; background: transparent; color: var(--text);
+  font: inherit; font-weight: 700; font-variant-numeric: tabular-nums;
+  text-align: center; -moz-appearance: textfield;
+}
+.paso input::-webkit-outer-spin-button, .paso input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.paso .uni { padding-right: var(--sp-2); color: var(--text-faint); font-size: var(--fs-xs); }
+
+.ok {
+  width: var(--touch); height: var(--touch); padding: 0;
+  display: grid; place-items: center;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-2); color: var(--text-faint); cursor: pointer;
+}
+.serie.hecha .ok { background: var(--ok); border-color: var(--ok); color: var(--text-invert); }
+
+/* ─── Barra de descanso ──────────────────────────────────────────────────── */
+
+#descanso {
+  position: fixed; left: 0; right: 0; z-index: 30;
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  background: var(--surface); border-top: 1px solid var(--border);
+}
+#descanso-barra { height: 3px; background: var(--accion); width: 100%; transition: width .95s linear; }
+.descanso-cuerpo {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4); max-width: 640px; margin: 0 auto;
+}
+#descanso-reloj { font-size: var(--fs-xl); font-weight: 800; font-variant-numeric: tabular-nums; }
+#descanso-que { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.descanso-cuerpo button {
+  min-height: 36px; padding: 0 var(--sp-3); flex: none;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface-2); color: var(--text); font: inherit; font-size: var(--fs-sm); cursor: pointer;
+}
+
+/* ─── Barra de pestanas ──────────────────────────────────────────────────── */
+
+#tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  padding-bottom: env(safe-area-inset-bottom);
+  background: color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter: saturate(180%) blur(14px);
+  border-top: 1px solid var(--border);
+}
+#tabs button {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  min-height: 64px; padding: 0;
+  background: none; border: 0; color: var(--text-faint);
+  font: inherit; font-size: 10px; font-weight: 600; cursor: pointer;
+}
+#tabs button[aria-selected="true"] { color: var(--accion); }
+#tabs .ic { width: 24px; height: 24px; }
+
+.ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2;
+      stroke-linecap: round; stroke-linejoin: round; }
+#i-hoy path, #i-cuerpo path { fill: currentColor; stroke: none; }
+
+/* ─── Hoja inferior (ficha del ejercicio) ────────────────────────────────── */
+
+#hoja {
+  position: fixed; inset: 0; z-index: 50;
+  background: color-mix(in srgb, var(--surface-sunk) 70%, transparent);
+  display: flex; align-items: flex-end;
+}
+/* OJO: 'display: flex' de autor gana a la regla [hidden]{display:none} del
+ * navegador. Sin esta linea el velo cubre la pantalla SIEMPRE: se ve todo
+ * apagado y ningun dedo llega a los botones. Los clics por JS si pasaban, asi
+ * que esto solo se ve mirando una captura. */
+#hoja[hidden] { display: none; }
+#hoja-cuerpo {
+  width: 100%; max-height: 85vh; overflow-y: auto;
+  background: var(--surface);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-top: 1px solid var(--border);
+  padding: var(--sp-5) var(--sp-4) calc(var(--sp-6) + env(safe-area-inset-bottom));
+}
+
+/* ─── Varios ─────────────────────────────────────────────────────────────── */
+
+.aviso {
+  border-left: 3px solid var(--aviso); background: var(--entreno-bg);
+  padding: var(--sp-3); border-radius: var(--radius-sm);
+  font-size: var(--fs-sm); color: var(--text);
+}
+.aviso.malo { border-left-color: var(--fallo); background: var(--riesgo-bg); }
+
+.dato { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3);
+        padding: var(--sp-2) 0; border-top: 1px solid var(--border); }
+.dato:first-of-type { border-top: 0; }
+.dato .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: var(--sp-2); }
+.baldosa { background: var(--surface-sunk); border-radius: var(--radius); padding: var(--sp-3); text-align: center; }
+.baldosa .v { font-size: var(--fs-lg); font-weight: 800; font-variant-numeric: tabular-nums; display: block; }
+/* block, o la etiqueta y su pie salen pegados: 'Pfijo' en vez de 'P / fijo' */
+.baldosa .k { display: block; font-size: var(--fs-xs); color: var(--text-muted); }
+.baldosa .k.faint { color: var(--text-faint); }
+
+textarea {
+  width: 100%; min-height: 72px; padding: var(--sp-3);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface-2); color: var(--text); font: inherit; resize: vertical;
+}
+
+.vacio { text-align: center; color: var(--text-faint); padding: var(--sp-8) var(--sp-4); }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}

@@ -1,0 +1,175 @@
+/* centro/app/css/tokens.css
+ *
+ * Sistema de diseno. UNICO fichero donde puede aparecer un color literal.
+ * Cualquier otro CSS usa var(--...). Tema claro y oscuro completos.
+ */
+
+:root {
+  /* --- Superficies ------------------------------------------------------ */
+  --bg:            #f6f7f9;
+  --surface:       #ffffff;
+  --surface-2:     #eef0f4;
+  --surface-sunk:  #e6e9ef;
+  --border:        #d6dae2;
+  --border-strong: #b4bac6;
+
+  /* --- Texto ------------------------------------------------------------ */
+  --text:        #12161d;
+  --text-muted:  #5a6373;
+  --text-faint:  #8a93a3;
+  --text-invert: #ffffff;
+
+  /* --- Acento por dominio ----------------------------------------------- */
+  --entreno:     #b45309;  /* ambar */
+  --entreno-bg:  #fef3c7;
+  --nutricion:   #15803d;  /* verde */
+  --nutricion-bg:#dcfce7;
+  --recuperacion:#1d4ed8;  /* azul */
+  --recuperacion-bg:#dbeafe;
+  --riesgo:      #b91c1c;  /* rojo */
+  --riesgo-bg:   #fee2e2;
+  --neutro:      #475569;
+  --neutro-bg:   #e2e8f0;
+
+  /* --- Semaforo de las reglas de decision -------------------------------- */
+  --ok:      #15803d;
+  --aviso:   #b45309;
+  --fallo:   #b91c1c;
+  --sin-dato:#8a93a3;
+
+  /* --- Interaccion ------------------------------------------------------- */
+  --accion:      #1d4ed8;
+  --accion-hover:#1e40af;
+  --accion-text: #ffffff;
+  --focus:       #2563eb;
+
+  /* --- Grafica: serie categorica, validada en contraste ------------------ */
+  --serie-1: #2563eb;
+  --serie-2: #b45309;
+  --serie-3: #15803d;
+  --serie-4: #9333ea;
+  --serie-5: #0891b2;
+  --grid:    #d6dae2;
+  --banda:   #eef0f4;
+
+  /* --- Tipografia -------------------------------------------------------- */
+  --font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.75rem;
+  --fs-2xl: 2.5rem;
+
+  /* --- Espaciado y forma ------------------------------------------------- */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.5rem;
+  --sp-6: 2rem;
+  --sp-8: 3rem;
+  --radius:    10px;
+  --radius-sm: 6px;
+  --radius-lg: 16px;
+  --shadow:    0 1px 2px rgba(18, 22, 29, 0.06), 0 2px 8px rgba(18, 22, 29, 0.06);
+  --shadow-lg: 0 4px 24px rgba(18, 22, 29, 0.12);
+
+  /* Altura minima de zona tactil: se registra de pie y con una mano. */
+  --touch: 44px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:            #0e1117;
+    --surface:       #161b23;
+    --surface-2:     #1e242e;
+    --surface-sunk:  #0a0d12;
+    --border:        #2b323d;
+    --border-strong: #3d4653;
+
+    --text:        #e8ecf2;
+    --text-muted:  #9aa5b5;
+    --text-faint:  #6b7686;
+    --text-invert: #0e1117;
+
+    --entreno:     #fbbf24;
+    --entreno-bg:  #3a2c08;
+    --nutricion:   #4ade80;
+    --nutricion-bg:#0d2f1a;
+    --recuperacion:#60a5fa;
+    --recuperacion-bg:#0e2547;
+    --riesgo:      #f87171;
+    --riesgo-bg:   #3d1414;
+    --neutro:      #94a3b8;
+    --neutro-bg:   #1e293b;
+
+    --ok:      #4ade80;
+    --aviso:   #fbbf24;
+    --fallo:   #f87171;
+    --sin-dato:#6b7686;
+
+    --accion:      #3b82f6;
+    --accion-hover:#60a5fa;
+    --accion-text: #0e1117;
+    --focus:       #60a5fa;
+
+    --serie-1: #60a5fa;
+    --serie-2: #fbbf24;
+    --serie-3: #4ade80;
+    --serie-4: #c084fc;
+    --serie-5: #22d3ee;
+    --grid:    #2b323d;
+    --banda:   #1e242e;
+
+    --shadow:    0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 4px 24px rgba(0, 0, 0, 0.5);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg:            #0e1117;
+  --surface:       #161b23;
+  --surface-2:     #1e242e;
+  --surface-sunk:  #0a0d12;
+  --border:        #2b323d;
+  --border-strong: #3d4653;
+
+  --text:        #e8ecf2;
+  --text-muted:  #9aa5b5;
+  --text-faint:  #6b7686;
+  --text-invert: #0e1117;
+
+  --entreno:     #fbbf24;
+  --entreno-bg:  #3a2c08;
+  --nutricion:   #4ade80;
+  --nutricion-bg:#0d2f1a;
+  --recuperacion:#60a5fa;
+  --recuperacion-bg:#0e2547;
+  --riesgo:      #f87171;
+  --riesgo-bg:   #3d1414;
+  --neutro:      #94a3b8;
+  --neutro-bg:   #1e293b;
+
+  --ok:      #4ade80;
+  --aviso:   #fbbf24;
+  --fallo:   #f87171;
+  --sin-dato:#6b7686;
+
+  --accion:      #3b82f6;
+  --accion-hover:#60a5fa;
+  --accion-text: #0e1117;
+  --focus:       #60a5fa;
+
+  --serie-1: #60a5fa;
+  --serie-2: #fbbf24;
+  --serie-3: #4ade80;
+  --serie-4: #c084fc;
+  --serie-5: #22d3ee;
+  --grid:    #2b323d;
+  --banda:   #1e242e;
+
+  --shadow:    0 1px 2px rgba(0, 0, 0, 0.4), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 4px 24px rgba(0, 0, 0, 0.5);
+}

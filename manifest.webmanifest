@@ -1,0 +1,16 @@
+{
+  "name": "Entreno",
+  "short_name": "Entreno",
+  "description": "El entrenamiento del día, las series, la comida y el peso.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e1117",
+  "theme_color": "#0e1117",
+  "icons": [
+    { "src": "icono.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icono-180.png", "sizes": "180x180", "type": "image/png", "purpose": "any" },
+    { "src": "icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
