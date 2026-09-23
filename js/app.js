@@ -108,36 +108,69 @@ async function pintaSync(n) {
 D.alCambiarCola((n) => pintaSync(n));
 chip.addEventListener('click', () => abrirHoja(pantallaAjustes()));
 
+// El repositorio no cambia nunca, asi que viene puesto: lo unico que hay que
+// pegar es el token. Va aqui y no en un fichero de configuracion porque esta
+// app se publica en abierto y el nombre del repo no es un secreto (su
+// contenido si, y eso lo protege el token).
+const REPO_POR_DEFECTO = 'eladobrands-svg/ENTRENAMIENTO';
+const RAMA_POR_DEFECTO = 'master';
+
 function pantallaAjustes() {
   const wrap = document.createElement('div');
   wrap.innerHTML = `
-    <h2>Conectar con el repositorio</h2>
-    <p class="sub">El token se guarda solo en este móvil. No viaja a ningún otro sitio.</p>
-    <h3>Repositorio</h3>
-    <div class="paso"><input id="c-repo" placeholder="usuario/ENTRENAMIENTO"></div>
-    <h3>Token</h3>
-    <div class="paso"><input id="c-token" type="password" placeholder="github_pat_..."></div>
-    <h3>Rama</h3>
-    <div class="paso"><input id="c-rama" placeholder="master"></div>
+    <h2>Conectar</h2>
+    <p class="sub">Esto se hace UNA vez. Después la app funciona desde cualquier sitio:
+      no necesita tu wifi ni que el ordenador esté encendido.</p>
+    <h3>Token de GitHub</h3>
+    <div class="paso"><input id="c-token" type="password" autocomplete="off"
+      autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="pega aquí el token"></div>
+    <p class="sub">Se guarda solo en este móvil, en el almacén de esta página. No viaja a ningún
+      otro sitio ni se envía a nadie.</p>
+    <details><summary class="sub">Cambiar repositorio o rama</summary>
+      <div class="paso" style="margin-top:8px"><input id="c-repo" autocapitalize="off" spellcheck="false"></div>
+      <div class="paso" style="margin-top:8px"><input id="c-rama" autocapitalize="off" spellcheck="false"></div>
+    </details>
+    <p id="c-estado" class="sub"></p>
   `;
+  const estadoTxt = wrap.querySelector('#c-estado');
   const guardar = document.createElement('button');
-  guardar.className = 'btn'; guardar.type = 'button'; guardar.textContent = 'Guardar y sincronizar';
+  guardar.className = 'btn'; guardar.type = 'button'; guardar.textContent = 'Conectar';
+
   guardar.addEventListener('click', async () => {
-    await D.guardarConfig({
-      repo: wrap.querySelector('#c-repo').value.trim() || null,
-      token: wrap.querySelector('#c-token').value.trim() || null,
-      rama: wrap.querySelector('#c-rama').value.trim() || 'master',
-    });
-    cerrarHoja();
-    try { await D.paquete({ forzarRed: true }); await D.vaciar(); aviso('Conectado.'); }
-    catch (e) { aviso(`No se pudo conectar: ${e.message}`); }
-    arrancar();
+    const token = wrap.querySelector('#c-token').value.trim();
+    if (!token) { estadoTxt.textContent = 'Falta el token.'; return; }
+    guardar.disabled = true;
+    estadoTxt.textContent = 'Comprobando…';
+
+    const anterior = await D.config();
+    const nueva = {
+      repo: wrap.querySelector('#c-repo').value.trim() || REPO_POR_DEFECTO,
+      token,
+      rama: wrap.querySelector('#c-rama').value.trim() || RAMA_POR_DEFECTO,
+    };
+    await D.guardarConfig(nueva);
+    try {
+      // Se comprueba de verdad antes de dar por buena la conexion: un token
+      // mal pegado tiene que fallar AQUI, no tres dias despues en el gimnasio.
+      const p = await D.paquete({ forzarRed: true });
+      estadoTxt.textContent = `Conectado. Plan de la semana ${p.semana.iso}.`;
+      await D.vaciar();
+      cerrarHoja();
+      aviso(`Conectado a ${nueva.repo}.`);
+      arrancar();
+    } catch (e) {
+      await D.guardarConfig(anterior);          // no se deja una config rota puesta
+      estadoTxt.textContent = /401|403/.test(e.message)
+        ? 'El token no vale o no tiene permiso sobre ese repositorio.'
+        : `No se pudo conectar: ${e.message}`;
+      guardar.disabled = false;
+    }
   });
   wrap.append(guardar);
 
   D.config().then((c) => {
-    wrap.querySelector('#c-repo').value = c.repo ?? '';
-    wrap.querySelector('#c-rama').value = c.rama ?? 'master';
+    wrap.querySelector('#c-repo').value = c.repo ?? REPO_POR_DEFECTO;
+    wrap.querySelector('#c-rama').value = c.rama ?? RAMA_POR_DEFECTO;
   });
   return wrap;
 }

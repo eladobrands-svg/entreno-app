@@ -261,3 +261,11 @@ textarea {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+/* Ajustes: el desplegable de repositorio/rama, que casi nunca se toca. */
+details summary { cursor: pointer; padding: var(--sp-2) 0; }
+details[open] summary { margin-bottom: var(--sp-2); }
+#c-estado:not(:empty) {
+  margin-top: var(--sp-3); padding: var(--sp-3);
+  background: var(--surface-sunk); border-radius: var(--radius-sm); color: var(--text);
+}
