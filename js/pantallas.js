@@ -260,7 +260,7 @@ export function pantallaSemana(p) {
 // HOY
 // ════════════════════════════════════════════════════════════════════════════
 
-export function pantallaHoy(p) {
+export function pantallaHoy(p, api) {
   const fecha = hoyISO();
   const d = diaDe(p, fecha);
   const v = el('div');
