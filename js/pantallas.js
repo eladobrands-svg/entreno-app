@@ -97,7 +97,19 @@ export function modalidadDe(p, fecha) {
 export function programaDe(p, fecha) {
   const o = opcionDe(p, fecha);
   const dia = diaDe(p, fecha);
-  if (o.tipo !== 'gimnasio') return { ...(dia ?? {}), tipo: o.tipo, titulo: o.etiqueta, ejercicios: [], prestado: null };
+  if (o.tipo !== 'gimnasio') {
+    // El enfoque y la nota son de la sesion que el plan puso ESE dia. Si eliges
+    // otra cosa no se arrastran: «SENTADILLA: 80, la tercera serie es la que se
+    // mira» no pinta nada en un dia de CrossFit.
+    const suyo = dia?.tipo === o.tipo;
+    return {
+      fecha, dia: dia?.dia, tipo: o.tipo, titulo: o.etiqueta,
+      enfoque: suyo ? dia.enfoque : null,
+      nota: suyo ? dia.nota : null,
+      cintura: dia?.cintura ?? false,
+      ejercicios: [], seriesPrevistas: 0, prestado: null,
+    };
+  }
   const f = o.fuente;
   return {
     ...dia,
@@ -295,7 +307,9 @@ export async function pantallaEntrenar(p, api) {
   if (!ses || ses.fecha !== fecha) {
     v.append(tarjeta(
       el('h2', { texto: prog.titulo ?? 'Sesión' }),
-      el('p', { class: 'muted', texto: prog.tipo === 'crossfit' ? 'CrossFit' : `${prog.seriesPrevistas ?? 0} series previstas` }),
+      prog.tipo === 'gimnasio'
+        ? el('p', { class: 'muted', texto: `${prog.seriesPrevistas ?? 0} series previstas` })
+        : el('p', { class: 'muted', texto: 'El WOD se anota al terminar.' }),
       prog.prestado ? el('p', { class: 'sub', texto: `Es la sesión que el plan pone el ${prog.prestado.toLowerCase()}.` }) : null,
       prog.enfoque ? el('p', { class: 'muted', texto: prog.enfoque }) : null,
       prog.nota ? el('p', { class: 'aviso', texto: prog.nota }) : null,
