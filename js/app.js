@@ -8,7 +8,7 @@ import { estado, pantallaHoy, pantallaEntrenar, pantallaComer, pantallaAnalisis,
 // Se sube a mano en cada despliegue. Sirve para dos cosas: que se vea en
 // Ajustes qué versión está corriendo el móvil (sin eso, «no veo los cambios»
 // es indiagnosticable) y para que el service worker se reinstale.
-export const VERSION = '2026-09-23.15';
+export const VERSION = '2026-09-23.16';
 
 const $ = (s) => document.querySelector(s);
 const vista = $('#vista');
@@ -203,6 +203,45 @@ async function pintaSync(n) {
 }
 D.alCambiarCola((n) => pintaSync(n));
 chip.addEventListener('click', () => abrirHoja(pantallaAjustes()));
+
+// ─── el boton de actualizar, junto al titulo ────────────────────────────────
+//
+// Un solo toque hace las tres cosas en orden: version nueva de la app (si la
+// hay, recarga y ya), pulsera desde GitHub Actions, y paquete fresco. Lo que
+// pasa se cuenta en el subtitulo; lo que falla se dice, no se esconde.
+
+const btnAct = $('#btn-actualizar');
+const sub = $('#subtitulo');
+async function actualizarTodo() {
+  if (btnAct.dataset.ocupado === 'true') return;
+  btnAct.dataset.ocupado = 'true';
+  const di = (t) => { sub.textContent = t; };
+  try {
+    di('Comprobando versión…');
+    if (await D.autoActualizar(VERSION)) return;      // recarga en marcha
+
+    const c = await D.config();
+    if (c.token && c.repo) {
+      try {
+        await D.actualizarPulsera(di);
+      } catch (e) {
+        aviso(e.message);                             // se cuenta, pero se sigue
+      }
+    }
+
+    di('Cargando datos…');
+    estado.paquete = await D.paquete({ forzarRed: true });
+    await pinta();
+    const h = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+    sub.textContent = `${sub.textContent.replace(/ · actualizado.*$/, '')} · actualizado ${h}`;
+  } catch (e) {
+    aviso(`No se pudo actualizar: ${e.message}`);
+    await pinta();
+  } finally {
+    btnAct.dataset.ocupado = 'false';
+  }
+}
+btnAct.addEventListener('click', actualizarTodo);
 
 // El folio: la semana explicada. Fase, qué se espera, dónde mejorar.
 $('#btn-semana').addEventListener('click', () => {

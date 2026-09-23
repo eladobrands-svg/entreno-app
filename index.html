@@ -23,6 +23,7 @@
   <g id="i-entrenar"><path d="M6.5 7v10M17.5 7v10M3 9v6M21 9v6M6.5 12h11"/></g>
   <g id="i-comer"><path d="M6 3v8a2 2 0 0 0 4 0V3M8 11v10M18 3c-1.5 1.5-2 3.5-2 5.5V13h3V3z"/></g>
   <g id="i-analisis"><path d="M4 20V10M10 20V4M16 20v-7M22 20v-11"/></g>
+  <g id="i-refresco"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></g>
   <g id="i-folio"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></g>
   <g id="i-cuerpo"><path d="M12 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM8 9h8l-1.5 5H16l1 7h-2l-1-5h-4l-1 5H7l1-7h1.5z"/></g>
   <g id="i-info"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></g>
@@ -35,7 +36,10 @@
 
 <header id="cabecera">
   <div class="cab-txt">
-    <h1 id="titulo">Entreno</h1>
+    <div class="cab-fila">
+      <h1 id="titulo">Entreno</h1>
+      <button id="btn-actualizar" type="button" title="Actualizar app, pulsera y datos" aria-label="Actualizar"><svg class="ic"><use href="#i-refresco"/></svg></button>
+    </div>
     <p id="subtitulo" class="sub"></p>
   </div>
   <button id="btn-semana" class="chip-sync" type="button" title="La semana: fase, qué se espera y dónde mejorar"><svg class="ic"><use href="#i-folio"/></svg></button>
@@ -68,6 +72,6 @@
 
 <!-- La version en la URL: un index.html nuevo trae SIEMPRE modulos nuevos, aunque
      el navegador tenga los anteriores en cache. La sube app/desplegar.js. -->
-<script type="module" src="js/app.js?v=2026-09-23.15"></script>
+<script type="module" src="js/app.js?v=2026-09-23.16"></script>
 </body>
 </html>

@@ -335,3 +335,16 @@ label.opcion input { width: 22px; height: 22px; flex: none; margin-top: 2px; acc
 .kcal-relleno.pasado { background: var(--fallo); }
 .kcal-macros { display: flex; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-2); }
 .kcal-macro { font-size: var(--fs-xs); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+
+/* ─── El boton de actualizar, pegado al titulo ───────────────────────────── */
+
+.cab-fila { display: flex; align-items: center; gap: var(--sp-2); }
+#btn-actualizar {
+  width: 36px; height: 36px; padding: 0; flex: none;
+  display: grid; place-items: center;
+  border: 1px solid var(--border); border-radius: 999px;
+  background: var(--surface-2); color: var(--text); cursor: pointer;
+}
+#btn-actualizar[data-ocupado="true"] { color: var(--accion); pointer-events: none; }
+#btn-actualizar[data-ocupado="true"] .ic { animation: girar 1s linear infinite; }
+@keyframes girar { to { transform: rotate(360deg); } }
