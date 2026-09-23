@@ -79,6 +79,8 @@ async function gh(ruta, opciones = {}) {
     err.status = r.status;
     throw err;
   }
+  // El dispatch de un workflow responde 204 sin cuerpo: parsearlo reventaria.
+  if (r.status === 204) return null;
   return r.json();
 }
 
@@ -141,6 +143,46 @@ export async function escribirEnRepo(ruta, texto, mensaje) {
     method: 'PUT',
     body: JSON.stringify({ message: mensaje, content: b64(texto), branch: c.rama, ...(sha ? { sha } : {}) }),
   });
+}
+
+// ---------------------------------------------------------------------------
+// Disparar la pulsera desde el movil
+// ---------------------------------------------------------------------------
+
+/**
+ * Pide a GitHub Actions que traiga la pulsera (pulsera.yml) y espera a que
+ * termine. No hace falta el PC: la sincronizacion corre en los servidores de
+ * GitHub con la configuracion de Google guardada como secreto.
+ *
+ * Devuelve cuando el trabajo acaba (bien o mal) o a los ~3 minutos. Lo que
+ * sigue es volver a pedir el paquete, que ya traera los datos nuevos.
+ */
+export async function actualizarPulsera(onEstado = () => {}) {
+  const c = await config();
+  const base = `/repos/${c.repo}/actions/workflows/pulsera.yml`;
+
+  const antes = Date.now();
+  await gh(`${base}/dispatches`, { method: 'POST', body: JSON.stringify({ ref: c.rama }) });
+  onEstado('Pedido a GitHub. Suele tardar un minuto…');
+
+  // El dispatch responde 204 sin id de ejecucion: hay que buscar la que acaba
+  // de nacer. Se espera a que aparezca y luego a que termine.
+  const inicio = Date.now();
+  let run = null;
+  while (Date.now() - inicio < 200000) {
+    await new Promise((r) => setTimeout(r, 5000));
+    const j = await gh(`${base}/runs?per_page=3&event=workflow_dispatch`);
+    run = (j.workflow_runs ?? []).find((r) => Date.parse(r.created_at) >= antes - 15000) ?? null;
+    if (!run) { onEstado('Esperando a que arranque…'); continue; }
+    if (run.status === 'completed') break;
+    onEstado(run.status === 'queued' ? 'En cola en GitHub…' : 'Trayendo datos de Google Health…');
+  }
+  if (!run) throw new Error('GitHub no ha arrancado el trabajo. Reintenta en un minuto.');
+  if (run.status !== 'completed') throw new Error('Sigue corriendo. Los datos aparecerán en el siguiente arranque.');
+  if (run.conclusion !== 'success') {
+    throw new Error('La sincronización ha fallado en GitHub. Lo más probable: el permiso de Google ha caducado y el PC aún no lo ha renovado.');
+  }
+  return run;
 }
 
 // ---------------------------------------------------------------------------

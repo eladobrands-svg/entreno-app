@@ -334,15 +334,33 @@ export function pantallaHoy(p) {
   }
   v.append(tarjPasos);
 
-  // — el resto de la pulsera —
+  // — el resto de la pulsera, y el boton para traerla sin PC —
   const s = ult(p.historico.sueno); const pe = ult(p.historico.peso);
+  const estadoBtn = el('p', { class: 'sub', texto: 'Los pone la pulsera. La app no los toca.' });
+  const btnPulsera = el('button', {
+    class: 'btn sec', type: 'button', texto: 'Actualizar pulsera',
+    onclick: async () => {
+      btnPulsera.disabled = true;
+      try {
+        await D.actualizarPulsera((t) => { estadoBtn.textContent = t; });
+        estadoBtn.textContent = 'Listo. Cargando los datos nuevos…';
+        estado.paquete = await D.paquete({ forzarRed: true });
+        api.aviso('Pulsera actualizada.');
+        estado.refrescar?.();
+      } catch (e) {
+        estadoBtn.textContent = e.message;
+        btnPulsera.disabled = false;
+      }
+    },
+  });
   v.append(tarjeta(
     el('h2', { texto: 'De la pulsera' }),
     el('div', { class: 'rejilla' }, [
       baldosa('Sueño', s ? `${num(s.horas, 1)} h` : '—', s?.fecha ?? 'sin dato'),
       baldosa('Peso', pe ? `${num(pe.peso, 1)} kg` : '—', pe?.fecha ?? 'sin dato'),
     ]),
-    el('p', { class: 'sub', texto: 'Los pone la pulsera. La app no los toca.' }),
+    btnPulsera,
+    estadoBtn,
   ));
 
   // — el resumen del día, con lo que hay escrito, sin inventar nada —
