@@ -330,6 +330,17 @@ export function pantallaHoy(p, api) {
       baldosa('Semana', `${Math.round((banda[0] * 7) / 1000)}-${Math.round((banda[1] * 7) / 1000)}k`, `llevas ${Math.round(sumaSem / 1000)}k en ${pasosSemana.length} días`),
     ]));
     tarjPasos.append(el('p', { class: 'sub', texto: p.analisis.pasos.nota }));
+    // Hasta que hora tiene datos la pulsera. Si es de hace horas, el numero de
+    // pasos es viejo por la pulsera, no por la app: la pulsera vuelca a Google
+    // Health a traves de la app de Fitbit, y si esa no sincroniza, nada llega.
+    const ud = p.analisis.pasos.ultimoDato ? new Date(p.analisis.pasos.ultimoDato) : null;
+    if (ud && !Number.isNaN(ud.getTime())) {
+      const horas = (Date.now() - ud.getTime()) / 3600000;
+      const hh = ud.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+      tarjPasos.append(horas > 3
+        ? el('p', { class: 'aviso', texto: `La pulsera solo ha volcado datos hasta las ${hh} (hace ${Math.round(horas)} h). Abre la app de Fitbit con el Bluetooth activo para que sincronice; después, el botón de actualizar traerá el resto.` })
+        : el('p', { class: 'sub', texto: `Pulsera con datos hasta las ${hh}.` }));
+    }
     if (refDia !== null && refDia < banda[0] * 0.6) {
       tarjPasos.append(el('p', { class: 'aviso', texto: 'Muy por debajo de la banda. Un día suelto no dice nada; varios seguidos sí, y entonces la diana de calorías queda alta.' }));
     }
