@@ -8,19 +8,19 @@ import { estado, pantallaHoy, pantallaEntrenar, pantallaComer, pantallaAnalisis,
 // Se sube a mano en cada despliegue. Sirve para dos cosas: que se vea en
 // Ajustes qué versión está corriendo el móvil (sin eso, «no veo los cambios»
 // es indiagnosticable) y para que el service worker se reinstale.
-export const VERSION = '2026-09-23.9';
+export const VERSION = '2026-09-23.10';
 
 const $ = (s) => document.querySelector(s);
 const vista = $('#vista');
 
-// ������ hoja inferior ��������������������������������������������������������������������������������������������������������������������
+// ─── hoja inferior ──────────────────────────────────────────────────────────
 
 const hoja = $('#hoja'); const hojaCuerpo = $('#hoja-cuerpo');
 function abrirHoja(nodo) { hojaCuerpo.replaceChildren(nodo); hoja.hidden = false; }
 function cerrarHoja() { hoja.hidden = true; hojaCuerpo.replaceChildren(); }
 hoja.addEventListener('click', (e) => { if (e.target === hoja) cerrarHoja(); });
 
-// ������ avisos ����������������������������������������������������������������������������������������������������������������������������������
+// ─── avisos ─────────────────────────────────────────────────────────────────
 
 function aviso(texto) {
   const n = document.createElement('div');
@@ -36,7 +36,7 @@ function aviso(texto) {
   setTimeout(() => n.remove(), 4200);
 }
 
-// ������ cronometro de descanso ��������������������������������������������������������������������������������������������������
+// ─── cronometro de descanso ─────────────────────────────────────────────────
 //
 // Wake Lock para que la pantalla no se apague entre series. En Safari funciona
 // desde iOS 16.4, pero DENTRO de una PWA instalada estuvo roto hasta iOS 18.4:
@@ -185,7 +185,7 @@ function pitido() {
   } catch { /* sin audio: el reloj ya llego a cero en pantalla */ }
 }
 
-// ������ estado de sincronizacion ����������������������������������������������������������������������������������������������
+// ─── estado de sincronizacion ───────────────────────────────────────────────
 
 const chip = $('#estado-sync'); const chipN = $('#pendientes');
 async function pintaSync(n) {
@@ -288,7 +288,7 @@ function pantallaAjustes() {
   return wrap;
 }
 
-// ������ router ����������������������������������������������������������������������������������������������������������������������������������
+// ─── router ─────────────────────────────────────────────────────────────────
 
 const api = { hoja: abrirHoja, cerrarHoja, aviso, descanso };
 let tab = 'hoy';
@@ -329,7 +329,7 @@ async function pinta() {
 
 estado.refrescar = pinta;
 
-// ������ arranque ������������������������������������������������������������������������������������������������������������������������������
+// ─── arranque ───────────────────────────────────────────────────────────────
 
 /**
  * Traspaso de configuracion por URL: #config=<base64 de {repo,token,rama}>.
