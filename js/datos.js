@@ -75,9 +75,51 @@ async function gh(ruta, opciones = {}) {
   });
   if (!r.ok) {
     const t = await r.text().catch(() => '');
-    throw new Error(`GitHub ${r.status}: ${t.slice(0, 200)}`);
+    const err = new Error(`GitHub ${r.status}: ${t.slice(0, 200)}`);
+    err.status = r.status;
+    throw err;
   }
   return r.json();
+}
+
+/**
+ * Por que ha fallado la conexion, en cristiano.
+ *
+ * Importa distinguir dos casos que parecen el mismo: GitHub responde 404 (no
+ * 403) cuando el token es valido pero NO alcanza ese repositorio, para no
+ * revelar que existe. Sin esta distincion, «no se puede con ese token» puede
+ * significar dos cosas opuestas y no sabes cual arreglar.
+ */
+export async function diagnosticar(token, repo) {
+  const cab = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' };
+
+  let quien;
+  try {
+    const r = await fetch(`${API}/user`, { headers: cab });
+    if (r.status === 401) return { ok: false, motivo: 'El token no es válido. Revisa que lo has copiado entero, sin espacios ni cortes.' };
+    if (!r.ok) return { ok: false, motivo: `GitHub responde ${r.status} al comprobar el token.` };
+    quien = (await r.json()).login;
+  } catch {
+    return { ok: false, motivo: 'No hay conexión con GitHub. Comprueba los datos o el wifi.' };
+  }
+
+  const r2 = await fetch(`${API}/repos/${repo}`, { headers: cab });
+  if (r2.status === 404) {
+    return {
+      ok: false,
+      motivo: `El token es de ${quien} y funciona, pero no alcanza «${repo}». `
+        + 'Si es un token fine-grained: en Repository access elige «Only select repositories» y marca ENTRENAMIENTO, '
+        + 'y en Permissions → Repository permissions pon Contents en «Read and write».',
+    };
+  }
+  if (r2.status === 403) return { ok: false, motivo: `El token es de ${quien} pero GitHub deniega el acceso (403).` };
+  if (!r2.ok) return { ok: false, motivo: `GitHub responde ${r2.status} al leer el repositorio.` };
+
+  const j = await r2.json();
+  if (!j.permissions?.push) {
+    return { ok: false, motivo: `El token de ${quien} solo puede LEER «${repo}». Necesita Contents: Read and write para guardar las series.` };
+  }
+  return { ok: true, motivo: `Token de ${quien}, con permiso de escritura sobre ${repo}.` };
 }
 
 const b64 = (s) => btoa(String.fromCharCode(...new TextEncoder().encode(s)));

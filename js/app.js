@@ -137,7 +137,9 @@ function pantallaAjustes() {
   guardar.className = 'btn'; guardar.type = 'button'; guardar.textContent = 'Conectar';
 
   guardar.addEventListener('click', async () => {
-    const token = wrap.querySelector('#c-token').value.trim();
+    // Al pegar desde iOS se cuelan espacios, saltos y a veces caracteres
+    // invisibles. Se limpia todo lo que no sea del token.
+    const token = wrap.querySelector('#c-token').value.replace(/[^\x21-\x7e]/g, '');
     if (!token) { estadoTxt.textContent = 'Falta el token.'; return; }
     guardar.disabled = true;
     estadoTxt.textContent = 'Comprobando…';
@@ -148,10 +150,15 @@ function pantallaAjustes() {
       token,
       rama: wrap.querySelector('#c-rama').value.trim() || RAMA_POR_DEFECTO,
     };
+
+    // Primero se diagnostica, y se dice QUE falla. «No se puede con ese token»
+    // no es una respuesta: hay que saber si el token es malo, si no llega al
+    // repositorio o si solo puede leer.
+    const d = await D.diagnosticar(token, nueva.repo);
+    if (!d.ok) { estadoTxt.textContent = d.motivo; guardar.disabled = false; return; }
+
     await D.guardarConfig(nueva);
     try {
-      // Se comprueba de verdad antes de dar por buena la conexion: un token
-      // mal pegado tiene que fallar AQUI, no tres dias despues en el gimnasio.
       const p = await D.paquete({ forzarRed: true });
       estadoTxt.textContent = `Conectado. Plan de la semana ${p.semana.iso}.`;
       await D.vaciar();
@@ -160,8 +167,9 @@ function pantallaAjustes() {
       arrancar();
     } catch (e) {
       await D.guardarConfig(anterior);          // no se deja una config rota puesta
-      estadoTxt.textContent = /401|403/.test(e.message)
-        ? 'El token no vale o no tiene permiso sobre ese repositorio.'
+      estadoTxt.textContent = e.status === 404
+        ? `El token vale, pero no encuentro derivado/app/ en «${nueva.repo}» (rama ${nueva.rama}). `
+          + 'Falta publicar el paquete desde el ordenador.'
         : `No se pudo conectar: ${e.message}`;
       guardar.disabled = false;
     }
