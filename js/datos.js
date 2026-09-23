@@ -287,7 +287,12 @@ export async function autoActualizar(versionActual) {
     for (const k of await caches.keys()) await caches.delete(k);
     for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
   } catch { /* da igual: la recarga ya trae lo nuevo */ }
-  location.reload();
+  // NO location.reload(): recargaria la MISMA URL, y el CDN de Pages la sirve
+  // cacheada hasta 10 minutos, o sea, la version vieja otra vez. Una URL nueva
+  // (?v=<version>) es un fallo de cache seguro y trae el index.html fresco.
+  const u = new URL(location.href);
+  u.searchParams.set('v', remota);
+  location.replace(u.toString());
   return true;
 }
 
