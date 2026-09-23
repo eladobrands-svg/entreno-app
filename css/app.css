@@ -301,3 +301,20 @@ details[open] summary { margin-bottom: var(--sp-2); }
 
 label.opcion { display: flex; gap: var(--sp-3); align-items: flex-start; padding: var(--sp-2) 0; cursor: pointer; }
 label.opcion input { width: 22px; height: 22px; flex: none; margin-top: 2px; accent-color: var(--accion); }
+
+/* ─── Insignias de tendencia ─────────────────────────────────────────────── */
+
+.ins {
+  display: inline-flex; align-items: center; flex: none;
+  padding: 3px var(--sp-2); border-radius: 999px;
+  font-size: var(--fs-xs); font-weight: 700; white-space: nowrap;
+}
+.ins.subiendo  { background: var(--nutricion-bg); color: var(--nutricion); }
+.ins.estancado { background: var(--entreno-bg);  color: var(--entreno); }
+.ins.bajando   { background: var(--riesgo-bg);   color: var(--riesgo); }
+.ins.sin       { background: var(--neutro-bg);   color: var(--text-faint); }
+.fila-ins { margin-top: var(--sp-2); }
+
+#cabecera .cab-txt { min-width: 0; }
+#cabecera #titulo, #cabecera .sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#btn-semana { padding: 0 var(--sp-2); }

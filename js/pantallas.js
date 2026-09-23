@@ -144,6 +144,119 @@ function dianas(p) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// EL FOLIO: la semana explicada
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Insignia de tendencia. 'sin muestra' NO es un fallo: es el estado honesto. */
+export function insignia(t) {
+  if (!t || t.estado === 'sin muestra') {
+    return el('span', {
+      class: 'ins sin', title: `Hacen falta ${t?.faltan ?? 5} sesiones más de este ejercicio`,
+      texto: `sin muestra · n=${t?.n ?? 0}`,
+    });
+  }
+  const txt = { subiendo: '↑ subiendo', estancado: '→ estancado', bajando: '↓ cayendo' }[t.estado];
+  return el('span', {
+    class: `ins ${t.estado}`, title: `${t.cambioPct > 0 ? '+' : ''}${t.cambioPct} % por sesión sobre ${t.n} sesiones`,
+    texto: txt,
+  });
+}
+
+export function pantallaSemana(p) {
+  const v = el('div');
+  const f = p.analisis?.fase;
+  const a = p.analisis ?? {};
+
+  v.append(el('h2', { texto: `Semana ${p.semana.iso}` }));
+  v.append(el('p', { class: 'sub', texto: p.semana.fechas ?? '' }));
+  if (p.semana.bloque) v.append(el('p', { class: 'mediano', texto: p.semana.bloque }));
+
+  // — en qué fase estás y qué significa para lo duro que hay que ir —
+  v.append(el('h3', { texto: 'Fase del ciclo' }));
+  if (!f) {
+    v.append(el('p', { class: 'aviso', texto: 'No hay ninguna fase definida que cubra estas fechas.' }));
+  } else if (f.vigente) {
+    v.append(el('p', {}, el('b', { texto: f.nombre })));
+    v.append(el('p', { class: 'muted', texto: `Del ${f.desde} al ${f.hasta ?? 'sin fecha de fin'}.` }));
+    if (f.mediaSemanal) {
+      v.append(el('p', { class: 'aviso', texto: `La media semanal está atada a ${f.mediaSemanal} kcal. Los días ciclan, la media no se mueve: si se mueve, la medición no mide nada.` }));
+    }
+  } else {
+    v.append(el('p', {}, el('b', { texto: `Empieza «${f.nombre}» en ${f.diasPara} días` })));
+    v.append(el('p', { class: 'muted', texto: `Del ${f.desde} al ${f.hasta ?? '—'}. Hasta entonces no hay fase que ate la media semanal.` }));
+  }
+
+  // — cómo de fuerte hay que ir —
+  const conRir = p.plan.dias.flatMap((d) => d.ejercicios ?? []).filter((e) => e.rpeObjetivo && e.rpeObjetivo !== '—');
+  if (conRir.length) {
+    const rpes = [...new Set(conRir.map((e) => e.rpeObjetivo))].sort();
+    v.append(el('h3', { texto: 'Cómo de fuerte ir' }));
+    v.append(el('p', {}, el('b', { texto: `RPE ${rpes.join(' · ')}` })));
+    v.append(el('p', { class: 'muted', texto: 'RPE 8 = te quedaban 2 repeticiones. RPE 10 = ni una más. Lo que no se anota no puede subir de peso la semana siguiente.' }));
+  }
+
+  // — qué se espera obtener: el contrato del plan —
+  if (p.contrato) {
+    v.append(el('h3', { texto: 'Qué se espera de esta semana' }));
+    if (p.contrato.peso) v.append(el('p', { class: 'muted', texto: p.contrato.peso }));
+    for (const m of p.contrato.medir ?? []) {
+      v.append(el('div', { class: 'dato' }, [
+        el('span', { texto: m.que }), el('span', { class: 'v', texto: m.espero }),
+      ]));
+    }
+    if (p.contrato.decisiones?.length) {
+      v.append(el('h3', { texto: 'Qué se decide con el resultado' }));
+      for (const d of p.contrato.decisiones) {
+        v.append(el('p', { class: 'muted' }, el('span', { texto: `Si ${d.si} → ${d.entonces}` })));
+      }
+    }
+  }
+
+  // — dónde mejorar, mirando atrás de verdad —
+  v.append(el('h3', { texto: 'Dónde hay que mejorar' }));
+  const flojos = Object.entries(a.porEjercicio ?? {})
+    .filter(([, x]) => x.tendencia.estado === 'bajando' || x.tendencia.estado === 'estancado');
+  const sinMuestra = Object.values(a.porEjercicio ?? {}).filter((x) => x.tendencia.estado === 'sin muestra').length;
+
+  for (const c of p.cargas ?? []) {
+    if (!c.motivo) continue;
+    v.append(el('div', { class: 'dato' }, [
+      el('span', { texto: c.ejercicio }), el('span', { class: 'v', texto: c.ahora ?? '' }),
+    ]));
+    v.append(el('p', { class: 'sub', texto: c.motivo }));
+  }
+
+  if (flojos.length) {
+    v.append(el('p', { texto: 'Con historial suficiente y sin avanzar:' }));
+    for (const [id, x] of flojos) {
+      v.append(el('div', { class: 'dato' }, [
+        el('span', { texto: p.catalogo.ejercicios[id]?.nombre ?? id }), insignia(x.tendencia),
+      ]));
+    }
+  }
+  if (sinMuestra) {
+    v.append(el('p', { class: 'aviso', texto: `${sinMuestra} ejercicios no tienen todavía 5 sesiones registradas, así que de esos no se puede decir si progresas. Es lo que más te falta ahora mismo: registrar.` }));
+  }
+
+  const ses = (a.sesiones ?? []).slice(0, 6);
+  if (ses.length) {
+    v.append(el('h3', { texto: 'Últimas sesiones' }));
+    for (const s of ses) {
+      v.append(el('div', { class: 'dato' }, [
+        el('span', { texto: `${s.fecha} · ${(s.titulo ?? '').split('·').pop().trim()}` }),
+        el('span', { class: 'v', texto: `${s.series ?? '—'} series${s.rpe ? ` · RPE ${num(s.rpe, 1)}` : ''}` }),
+      ]));
+    }
+  }
+
+  if (p.notaResumen) {
+    v.append(el('h3', { texto: 'Lo que decide el domingo' }));
+    v.append(el('p', { class: 'muted', texto: String(p.notaResumen).replace(/\*\*/g, '').slice(0, 700) }));
+  }
+  return v;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // HOY
 // ════════════════════════════════════════════════════════════════════════════
 
@@ -195,22 +308,59 @@ export function pantallaHoy(p) {
     ));
   }
 
-  // — la pulsera —
+  // — pasos: los de hoy, y la banda que el cálculo de calorías da por supuesta —
   const ult = (a) => (a && a.length ? a[a.length - 1] : null);
-  const s = ult(p.historico.sueno); const pa = ult(p.historico.pasos); const pe = ult(p.historico.peso);
+  const banda = p.analisis?.pasos?.banda ?? null;
+  const pasosSemana = (p.historico.pasos ?? []).filter((x) => x.fecha >= p.semana.desde && x.fecha <= p.semana.hasta);
+  const sumaSem = pasosSemana.reduce((a, x) => a + (x.pasos ?? 0), 0);
+  const pa = ult(p.historico.pasos);
+  const deHoy = (p.historico.pasos ?? []).find((x) => x.fecha === fecha);
+
+  const tarjPasos = tarjeta(
+    el('h2', { texto: 'Pasos' }),
+    el('p', { class: 'grande mono', texto: deHoy ? String(deHoy.pasos) : (pa ? String(pa.pasos) : '—') }),
+    el('p', { class: 'sub', texto: deHoy ? 'de hoy' : (pa ? `último dato: ${pa.fecha}` : 'sin dato') }),
+  );
+  if (banda) {
+    const refDia = deHoy?.pasos ?? null;
+    tarjPasos.append(el('div', { class: 'rejilla' }, [
+      baldosa('Día', `${banda[0] / 1000}-${banda[1] / 1000}k`, 'lo que supone el cálculo'),
+      baldosa('Semana', `${Math.round((banda[0] * 7) / 1000)}-${Math.round((banda[1] * 7) / 1000)}k`, `llevas ${Math.round(sumaSem / 1000)}k en ${pasosSemana.length} días`),
+    ]));
+    tarjPasos.append(el('p', { class: 'sub', texto: p.analisis.pasos.nota }));
+    if (refDia !== null && refDia < banda[0] * 0.6) {
+      tarjPasos.append(el('p', { class: 'aviso', texto: 'Muy por debajo de la banda. Un día suelto no dice nada; varios seguidos sí, y entonces la diana de calorías queda alta.' }));
+    }
+  }
+  v.append(tarjPasos);
+
+  // — el resto de la pulsera —
+  const s = ult(p.historico.sueno); const pe = ult(p.historico.peso);
   v.append(tarjeta(
     el('h2', { texto: 'De la pulsera' }),
     el('div', { class: 'rejilla' }, [
       baldosa('Sueño', s ? `${num(s.horas, 1)} h` : '—', s?.fecha ?? 'sin dato'),
-      baldosa('Pasos', pa ? String(pa.pasos) : '—', pa?.fecha ?? 'sin dato'),
       baldosa('Peso', pe ? `${num(pe.peso, 1)} kg` : '—', pe?.fecha ?? 'sin dato'),
     ]),
     el('p', { class: 'sub', texto: 'Los pone la pulsera. La app no los toca.' }),
   ));
 
-  if (d.cintura) {
-    v.append(el('div', { class: 'aviso' }, el('span', { texto: 'Hoy toca medir cintura. Está en la pestaña Cuerpo.' })));
-  }
+  // — el resumen del día, con lo que hay escrito, sin inventar nada —
+  const resumen = [];
+  if (prog.tipo === 'descanso') resumen.push('Hoy no se entrena.');
+  else resumen.push(`${prog.titulo}${prog.seriesPrevistas ? `, ${prog.seriesPrevistas} series` : ''}.`);
+  if (hoyDiana) resumen.push(`Comes ${hoyDiana.kcal} kcal.`);
+  if (d.cintura) resumen.push('Toca medir cintura.');
+  const faltan = [];
+  if (!(p.historico.peso ?? []).some((x) => x.fecha === fecha)) faltan.push('el peso de hoy');
+  if (d.cintura && !(p.historico.cintura ?? []).some((x) => x.fecha === fecha)) faltan.push('la cintura');
+  v.append(tarjeta(
+    el('h2', { texto: 'En una línea' }),
+    el('p', { texto: resumen.join(' ') }),
+    faltan.length
+      ? el('p', { class: 'aviso', texto: `Falta por registrar: ${faltan.join(' y ')}. Está en Análisis → Medidas.` })
+      : el('p', { class: 'sub', texto: 'No falta nada por registrar hoy.' }),
+  ));
   return v;
 }
 
@@ -346,6 +496,11 @@ export async function pantallaEntrenar(p, api) {
     ]);
 
     const t = tarjeta(cab);
+
+    // Progresando, estancado o cayendo. Con n<5 dice «sin muestra», que es lo
+    // honesto: con tres puntos no se declara una tendencia.
+    const an = p.analisis?.porEjercicio?.[e.ejercicioId];
+    if (an) t.append(el('div', { class: 'fila-ins' }, insignia(an.tendencia)));
 
     if (uv) {
       t.append(el('div', { class: 'ultima-vez' }, el('span', {
@@ -642,7 +797,213 @@ export function pantallaComer(p) {
 // CUERPO
 // ════════════════════════════════════════════════════════════════════════════
 
-export function pantallaCuerpo(p, api) {
+/** Pendiente de una serie temporal, en unidades por semana. Null si n<5. */
+function pendienteSemanal(puntos, campo) {
+  const xs = puntos.filter((x) => x[campo] !== null && x[campo] !== undefined);
+  if (xs.length < 5) return { n: xs.length, porSemana: null };
+  const t0 = Date.parse(xs[0].fecha);
+  const dias = xs.map((x) => (Date.parse(x.fecha) - t0) / 86400000);
+  const ys = xs.map((x) => Number(x[campo]));
+  const mx = dias.reduce((a, b) => a + b, 0) / xs.length;
+  const my = ys.reduce((a, b) => a + b, 0) / xs.length;
+  let num = 0; let den = 0;
+  dias.forEach((x, i) => { num += (x - mx) * (ys[i] - my); den += (x - mx) ** 2; });
+  return { n: xs.length, porSemana: den ? (num / den) * 7 : 0, desde: xs[0].fecha, hasta: xs[xs.length - 1].fecha };
+}
+
+export function pantallaAnalisis(p, api) {
+  const v = el('div');
+  const a = p.analisis ?? {};
+  const sec = estado.seccionAnalisis ?? 'medidas';
+
+  const SECCIONES = [
+    ['medidas', 'Medidas'],
+    ['peso', 'Peso'],
+    ['fuerza', 'Fuerza'],
+    ['sesiones', 'Sesiones'],
+    ['comida', 'Comida'],
+  ];
+  const nav = el('div', { class: 'chips' });
+  for (const [id, et] of SECCIONES) {
+    nav.append(el('button', {
+      class: 'chip', type: 'button', 'aria-pressed': String(id === sec),
+      onclick: () => { estado.seccionAnalisis = id; estado.refrescar?.(); },
+    }, el('span', { texto: et })));
+  }
+  v.append(nav);
+
+  if (sec === 'medidas') v.append(seccionMedidas(p, api));
+  else if (sec === 'peso') v.append(seccionPeso(p));
+  else if (sec === 'fuerza') v.append(seccionFuerza(p));
+  else if (sec === 'sesiones') v.append(seccionSesiones(p, a));
+  else v.append(seccionComida(p, a));
+  return v;
+}
+
+function seccionPeso(p) {
+  const v = el('div');
+  const pesos = p.historico.peso ?? [];
+  const pend = pendienteSemanal(pesos, 'peso');
+  const ult = pesos[pesos.length - 1];
+
+  v.append(tarjeta(
+    el('h2', { texto: 'Peso' }),
+    el('p', { class: 'grande mono', texto: ult ? `${num(ult.peso, 1)} kg` : '—' }),
+    el('p', { class: 'sub', texto: ult ? `último: ${ult.fecha}` : 'sin dato' }),
+    pend.porSemana === null
+      ? el('p', { class: 'aviso', texto: `Con ${pend.n} pesadas no hay tendencia. Hacen falta 5, y para decidir de verdad, 21 días seguidos.` })
+      : el('div', { class: 'rejilla' }, [
+        baldosa('Por semana', `${pend.porSemana > 0 ? '+' : ''}${num(pend.porSemana, 2)} kg`, `${pend.n} pesadas`),
+        baldosa('Desde', pend.desde, 'hasta ' + pend.hasta),
+      ]),
+    el('p', { class: 'sub', texto: 'La báscula manda: es lo único que decide si la ingesta sube o baja. Una pesada suelta no dice nada; la pendiente de tres semanas sí.' }),
+  ));
+
+  const cint = p.historico.cintura ?? [];
+  v.append(tarjeta(
+    el('h2', { texto: 'Cintura' }),
+    cint.length
+      ? el('div', {}, cint.slice(-8).reverse().map((c) => el('div', { class: 'dato' }, [
+        el('span', { texto: c.fecha }), el('span', { class: 'v', texto: `${num(c.cintura, 1)} cm` }),
+      ])))
+      : el('p', { class: 'aviso malo', texto: 'Ni una medida registrada. Es la entrada de dos frenos del lazo de control: sin ella, ciertas decisiones no se pueden tomar.' }),
+  ));
+  return v;
+}
+
+function seccionFuerza(p) {
+  const v = el('div');
+  const ej = Object.entries(p.analisis?.porEjercicio ?? {});
+  if (!ej.length) return el('div', {}, vacio('Todavía no hay sesiones registradas con series.'));
+
+  const orden = { bajando: 0, estancado: 1, subiendo: 2, 'sin muestra': 3 };
+  ej.sort((x, y) => orden[x[1].tendencia.estado] - orden[y[1].tendencia.estado]);
+
+  const conMuestra = ej.filter(([, x]) => x.tendencia.estado !== 'sin muestra');
+  v.append(tarjeta(
+    el('h2', { texto: 'Progresión por ejercicio' }),
+    el('p', { class: 'sub', texto: 'Se compara el tonelaje de la mejor serie (kg × reps) de cada sesión. Con menos de 5 sesiones no se declara tendencia.' }),
+    !conMuestra.length
+      ? el('p', { class: 'aviso', texto: `Ninguno de los ${ej.length} ejercicios llega a 5 sesiones registradas todavía. Hasta entonces, «progresando» o «estancado» serían inventados.` })
+      : null,
+  ));
+
+  for (const [id, x] of ej) {
+    const f = p.catalogo.ejercicios[id];
+    const ses = x.sesiones.slice(-6).reverse();
+    v.append(tarjeta(
+      el('div', { class: 'ejercicio-cab' }, [
+        el('div', {}, [
+          el('h2', { texto: f?.nombre ?? id }),
+          el('p', { class: 'sub', texto: f ? `${f.patron} · ${f.musculos.principal.join(', ')}` : '' }),
+        ]),
+        insignia(x.tendencia),
+      ]),
+      el('div', {}, ses.map((s) => el('div', { class: 'dato' }, [
+        el('span', { texto: s.fecha }),
+        el('span', { class: 'v', texto: s.mejorSerie ? `${s.mejorSerie.reps} × ${num(s.mejorSerie.kg, 1)} kg` : `${s.series.length} series` }),
+      ]))),
+    ));
+  }
+  return v;
+}
+
+function seccionSesiones(p, a) {
+  const v = el('div');
+  const ses = a.sesiones ?? [];
+  if (!ses.length) return el('div', {}, vacio('Sin sesiones registradas.'));
+
+  const conRpe = ses.filter((s) => s.rpe !== null);
+  const conSeries = ses.filter((s) => s.series !== null);
+  v.append(tarjeta(
+    el('h2', { texto: 'Resumen' }),
+    el('div', { class: 'rejilla' }, [
+      baldosa('Sesiones', String(ses.length), 'registradas'),
+      baldosa('RPE medio', conRpe.length ? num(conRpe.reduce((x, s) => x + s.rpe, 0) / conRpe.length, 1) : '—', `${conRpe.length} con RPE`),
+      baldosa('Series/sesión', conSeries.length ? num(conSeries.reduce((x, s) => x + s.series, 0) / conSeries.length, 0) : '—', `${conSeries.length} estructuradas`),
+    ]),
+    conRpe.length < ses.length
+      ? el('p', { class: 'aviso', texto: `${ses.length - conRpe.length} sesiones sin RPE. Sin RPE, ninguna carga de esa sesión puede subir.` })
+      : null,
+  ));
+
+  for (const s of ses) {
+    v.append(el('div', { class: 'dato' }, [
+      el('span', {}, [
+        el('span', { texto: s.fecha }),
+        el('br'),
+        el('span', { class: 'sub', texto: (s.titulo ?? '').split('·').pop().trim() }),
+      ]),
+      el('span', { class: 'v', texto: `${s.series ?? '—'} ser${s.rpe ? ` · RPE ${num(s.rpe, 1)}` : ''}${s.fatiga ? ` · fat ${num(s.fatiga, 1)}` : ''}` }),
+    ]));
+  }
+  return v;
+}
+
+function seccionComida(p, a) {
+  const v = el('div');
+  const real = p.historico.nutricionReal ?? [];
+  const obj = p.nutricion?.orientacion?.macros;
+
+  if (!real.length) return el('div', {}, vacio('Sin datos de comida todavía.'));
+
+  const ultimos = real.slice(-14);
+  const media = (c) => ultimos.reduce((x, d) => x + (d[c] ?? 0), 0) / ultimos.length;
+
+  v.append(tarjeta(
+    el('h2', { texto: `Lo que comes de verdad · ${ultimos.length} días` }),
+    el('p', { class: 'sub', texto: 'De FatSecret, que lo publica en Google Health. Medias, no un día suelto.' }),
+    el('div', { class: 'rejilla' }, [
+      baldosa('kcal', num(media('kcal'), 0), ''),
+      baldosa('Proteína', `${num(media('proteina'), 0)} g`, obj ? `objetivo ${obj.proteinaG}` : ''),
+      baldosa('Hidrato', `${num(media('carbos'), 0)} g`, ''),
+      baldosa('Grasa', `${num(media('grasa'), 0)} g`, obj ? `suelo ${obj.grasaMinimaG}` : ''),
+      baldosa('Fibra', `${num(media('fibra'), 0)} g`, a.micros?.fibra?.suelo ? `suelo ${a.micros.fibra.suelo}` : ''),
+    ]),
+  ));
+
+  // Consejos, pero solo los que se deducen de un número que existe.
+  const consejos = [];
+  if (obj && media('proteina') < obj.proteinaSueloG) {
+    consejos.push(`La proteína media (${num(media('proteina'), 0)} g) está por debajo del suelo de ${obj.proteinaSueloG} g. Es lo primero que hay que arreglar: sostiene el músculo.`);
+  } else if (obj && media('proteina') < obj.proteinaG) {
+    consejos.push(`La proteína media (${num(media('proteina'), 0)} g) está bajo el objetivo de ${obj.proteinaG} g pero encima del suelo. Aceptable, mejorable.`);
+  } else if (obj) {
+    consejos.push(`La proteína está en su sitio (${num(media('proteina'), 0)} g). Eso no se toca.`);
+  }
+  if (a.micros?.fibra?.suelo && media('fibra') < a.micros.fibra.suelo) {
+    consejos.push(`La fibra (${num(media('fibra'), 0)} g) no llega al suelo de ${a.micros.fibra.suelo} g. Verdura y legumbre, que además arrastran micros.`);
+  }
+  if (obj && media('grasa') < obj.grasaMinimaG) {
+    consejos.push(`La grasa (${num(media('grasa'), 0)} g) está por debajo del suelo hormonal de ${obj.grasaMinimaG} g. Ese suelo no se baja para cuadrar calorías.`);
+  }
+  const dianas = p.nutricion?.orientacion?.publicado ?? [];
+  const pares = ultimos.map((d) => ({ d, o: dianas.find((x) => x.fecha === d.fecha)?.kcal })).filter((x) => x.o);
+  if (pares.length >= 3) {
+    const dif = pares.reduce((x, q) => x + (q.d.kcal - q.o), 0) / pares.length;
+    consejos.push(Math.abs(dif) < 100
+      ? `Comes de media a ${num(Math.abs(dif), 0)} kcal de tu diana. Eso es clavarlo.`
+      : `Comes de media ${dif > 0 ? 'por encima' : 'por debajo'} de tu diana en ${num(Math.abs(dif), 0)} kcal/día. Sostenido, eso mueve la báscula y desvía la medición.`);
+  }
+
+  v.append(tarjeta(
+    el('h2', { texto: 'Qué hacer' }),
+    ...consejos.map((c) => el('p', { class: 'muted', texto: c })),
+    consejos.length ? null : el('p', { class: 'sub', texto: 'Sin objetivos publicados no hay nada que comparar.' }),
+  ));
+
+  // Micronutrientes: lo que NO se puede saber, dicho claro.
+  v.append(tarjeta(
+    el('h2', { texto: 'Micronutrientes' }),
+    el('p', { class: 'aviso', texto: a.micros?.aviso ?? 'Sin datos de micros.' }),
+    a.micros?.objetivos?.length
+      ? el('p', { class: 'sub', texto: `Hay ${a.micros.objetivos.length} micros con objetivo definido. Se calculan sobre el menú planificado con «node centro/scripts/menu.js», no sobre lo comido.` })
+      : null,
+  ));
+  return v;
+}
+
+function seccionMedidas(p, api) {
   const fecha = hoyISO();
   const d = diaDe(p, fecha);
   const v = el('div');

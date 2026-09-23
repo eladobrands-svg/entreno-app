@@ -3,7 +3,7 @@
 // Arranque, router de pestanas, cronometro de descanso y hoja inferior.
 
 import * as D from './datos.js';
-import { estado, pantallaHoy, pantallaEntrenar, pantallaComer, pantallaCuerpo } from './pantallas.js';
+import { estado, pantallaHoy, pantallaEntrenar, pantallaComer, pantallaAnalisis, pantallaSemana } from './pantallas.js';
 
 const $ = (s) => document.querySelector(s);
 const vista = $('#vista');
@@ -193,6 +193,11 @@ async function pintaSync(n) {
 D.alCambiarCola((n) => pintaSync(n));
 chip.addEventListener('click', () => abrirHoja(pantallaAjustes()));
 
+// El folio: la semana explicada. Fase, qué se espera, dónde mejorar.
+$('#btn-semana').addEventListener('click', () => {
+  if (estado.paquete) abrirHoja(pantallaSemana(estado.paquete));
+});
+
 // El repositorio no cambia nunca, asi que viene puesto: lo unico que hay que
 // pegar es el token. Va aqui y no en un fichero de configuracion porque esta
 // app se publica en abierto y el nombre del repo no es un secreto (su
@@ -282,7 +287,7 @@ function pantallaAjustes() {
 const api = { hoja: abrirHoja, cerrarHoja, aviso, descanso };
 let tab = 'hoy';
 
-const TITULOS = { hoy: 'Hoy', entrenar: 'Entrenar', comer: 'Comer', cuerpo: 'Cuerpo' };
+const TITULOS = { hoy: 'Hoy', entrenar: 'Entreno', comer: 'Comida', cuerpo: 'Análisis' };
 
 for (const b of document.querySelectorAll('#tabs button')) {
   b.addEventListener('click', () => { tab = b.dataset.tab; pinta(); });
@@ -305,7 +310,7 @@ async function pinta() {
     if (tab === 'hoy') nodo = pantallaHoy(p);
     else if (tab === 'entrenar') nodo = await pantallaEntrenar(p, api);
     else if (tab === 'comer') nodo = pantallaComer(p);
-    else nodo = pantallaCuerpo(p, api);
+    else nodo = pantallaAnalisis(p, api);
   } catch (e) {
     nodo = document.createElement('div');
     nodo.className = 'aviso malo';
