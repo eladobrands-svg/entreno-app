@@ -42,12 +42,45 @@ const hoyISO = () => {
 };
 const num = (v, dec = 0) => (v === null || v === undefined || Number.isNaN(v) ? '—' : Number(v).toFixed(dec).replace('.', ','));
 
-// Las modalidades que se pueden elegir, con lo que cuestan en series.
-const MODALIDADES = [
-  { id: 'gimnasio', etiqueta: 'La sesión del plan' },
-  { id: 'crossfit', etiqueta: 'CrossFit' },
-  { id: 'descanso', etiqueta: 'Descanso' },
-];
+/**
+ * Lo que se puede elegir para un día: TODAS las sesiones que existen en el plan
+ * de la semana, más CrossFit y descanso.
+ *
+ * Así «el lunes hago CrossFit en vez de pierna» o «hoy me apetece empuje» son
+ * lo mismo: eliges otra sesión de la semana y aparece SU programa, con sus
+ * ejercicios y sus pesos. Sin inventar nada: solo se ofrece lo que está escrito.
+ */
+export function opcionesDe(p) {
+  const vistas = new Map();
+  for (const d of p.plan.dias) {
+    if (d.tipo !== 'gimnasio' || !d.ejercicios?.length) continue;
+    const clave = d.titulo ?? d.dia;
+    if (!vistas.has(clave)) vistas.set(clave, { id: `plan:${d.fecha}`, etiqueta: clave, tipo: 'gimnasio', fuente: d });
+  }
+  return [
+    ...vistas.values(),
+    { id: 'crossfit', etiqueta: 'CrossFit', tipo: 'crossfit', fuente: null },
+    { id: 'descanso', etiqueta: 'Descanso', tipo: 'descanso', fuente: null },
+  ];
+}
+
+/** La opción elegida para un día (o la que trae el plan). */
+export function opcionDe(p, fecha) {
+  const ops = opcionesDe(p);
+  const guardada = estado.eleccion[fecha];
+  if (guardada) {
+    const o = ops.find((x) => x.id === guardada);
+    if (o) return o;
+  }
+  const d = p.plan.dias.find((x) => x.fecha === fecha);
+  if (!d) return ops[ops.length - 1];
+  if (d.tipo === 'gimnasio' && d.ejercicios?.length) {
+    return ops.find((o) => o.fuente?.fecha === fecha) ?? ops[0];
+  }
+  return ops.find((o) => o.tipo === d.tipo) ?? ops[ops.length - 1];
+}
+
+const DIAS_CORTOS = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
 // ─── estado compartido entre pestanas ───────────────────────────────────────
 
@@ -57,8 +90,26 @@ const diaDe = (p, fecha) => p.plan.dias.find((d) => d.fecha === fecha) ?? null;
 
 /** La modalidad vigente de un dia: la elegida si la hay, si no la del plan. */
 export function modalidadDe(p, fecha) {
-  const d = diaDe(p, fecha);
-  return estado.eleccion[fecha] ?? d?.tipo ?? 'descanso';
+  return opcionDe(p, fecha).tipo;
+}
+
+/** El programa que toca ese dia: el del plan, o el de la sesion que se eligio. */
+export function programaDe(p, fecha) {
+  const o = opcionDe(p, fecha);
+  const dia = diaDe(p, fecha);
+  if (o.tipo !== 'gimnasio') return { ...(dia ?? {}), tipo: o.tipo, titulo: o.etiqueta, ejercicios: [], prestado: null };
+  const f = o.fuente;
+  return {
+    ...dia,
+    tipo: 'gimnasio',
+    titulo: f.titulo,
+    enfoque: f.enfoque,
+    nota: f.nota,
+    ejercicios: f.ejercicios,
+    seriesPrevistas: f.seriesPrevistas,
+    // Si la sesion viene de otro dia de la semana, se dice de donde.
+    prestado: f.fecha !== fecha ? f.dia : null,
+  };
 }
 
 /** Recalcula las dianas de la semana con lo que el usuario haya elegido. */
@@ -67,11 +118,13 @@ function dianas(p) {
   if (!o) return null;
   const publicado = new Map((o.publicado ?? []).map((d) => [d.fecha, d.kcal]));
   const dias = p.plan.dias.filter((d) => d.fecha).map((d) => {
-    const modo = modalidadDe(p, d.fecha);
+    // Las series son las del programa ELEGIDO, no las del que traía el plan:
+    // si cambias pierna (13 series) por tirón (18), la diana lo tiene que notar.
+    const pr = programaDe(p, d.fecha);
     return {
       fecha: d.fecha,
-      sesiones: modo === 'descanso' ? []
-        : [{ modalidad: modo, series: modo === 'gimnasio' ? d.seriesPrevistas : null }],
+      sesiones: pr.tipo === 'descanso' ? []
+        : [{ modalidad: pr.tipo, series: pr.tipo === 'gimnasio' ? pr.seriesPrevistas : null }],
     };
   });
   const mediaSemanal = o.fase === 'medir' ? 2700 : null;   // lo fija la fase del repo
@@ -96,34 +149,17 @@ export function pantallaHoy(p) {
     return v;
   }
 
-  const elegida = modalidadDe(p, fecha);
-
-  // — que toca, y el selector —
-  const chips = el('div', { class: 'chips' });
-  for (const m of MODALIDADES) {
-    const esPlan = m.id === d.tipo;
-    chips.append(el('button', {
-      class: 'chip', type: 'button', 'aria-pressed': String(m.id === elegida),
-      onclick: () => {
-        estado.eleccion[fecha] = m.id;
-        D.set('eleccion', estado.eleccion);
-        estado.refrescar?.();
-      },
-    }, [
-      el('span', { texto: esPlan && d.tipo === 'gimnasio' ? (d.titulo ?? m.etiqueta) : m.etiqueta }),
-      esPlan ? el('span', { class: 'pista', texto: 'plan' }) : null,
-    ]));
-  }
+  const prog = programaDe(p, fecha);
+  const cambiado = prog.prestado || prog.tipo !== d.tipo;
 
   v.append(tarjeta(
     el('p', { class: 'sub', texto: `${d.dia} · ${p.semana.bloque ?? ''}`.trim() }),
-    el('p', { class: 'grande', texto: elegida === 'descanso' ? 'Descanso' : (elegida === 'crossfit' ? 'CrossFit' : (d.titulo ?? 'Sesión')) }),
-    d.enfoque && elegida === d.tipo ? el('p', { class: 'muted', texto: d.enfoque }) : null,
-    el('h3', { texto: 'Cambiar por' }),
-    chips,
-    elegida !== d.tipo
-      ? el('p', { class: 'aviso', texto: `El plan decía ${d.tipo}. Se registrará lo que hagas de verdad, y la comida del día se recalcula.` })
+    el('p', { class: 'grande', texto: prog.tipo === 'descanso' ? 'Descanso' : (prog.titulo ?? 'Sesión') }),
+    prog.enfoque ? el('p', { class: 'muted', texto: prog.enfoque }) : null,
+    cambiado
+      ? el('p', { class: 'aviso', texto: `El plan decía ${d.titulo ?? d.tipo}. Se registrará lo que hagas de verdad, y la comida del día ya está recalculada.` })
       : null,
+    el('p', { class: 'sub', texto: 'Para cambiarlo, o para ver otro día, ve a Entrenar.' }),
   ));
 
   // — la diana de hoy —
@@ -177,17 +213,80 @@ const baldosa = (k, v, sub) => el('div', { class: 'baldosa' }, [
 // ════════════════════════════════════════════════════════════════════════════
 
 export async function pantallaEntrenar(p, api) {
-  const fecha = hoyISO();
-  const d = diaDe(p, fecha);
-  const modo = modalidadDe(p, fecha);
+  const v = el('div');
+  const hoy = hoyISO();
   let ses = await D.sesionEnCurso();
 
-  const v = el('div');
+  // Si hay una sesion empezada, manda ella: no se puede estar mirando el jueves
+  // con el miercoles a medias.
+  const fecha = ses ? ses.fecha : (estado.diaVisto ?? hoy);
+  estado.diaVisto = fecha;
 
-  if (modo === 'descanso') {
+  // — la tira de la semana —
+  const tira = el('div', { class: 'tira' });
+  for (const d of p.plan.dias) {
+    if (!d.fecha) continue;
+    const pr = programaDe(p, d.fecha);
+    const i = p.plan.dias.indexOf(d);
+    tira.append(el('button', {
+      class: 'dia', type: 'button',
+      'aria-current': String(d.fecha === fecha),
+      'data-hoy': String(d.fecha === hoy),
+      'data-tipo': pr.tipo,
+      disabled: !!ses && d.fecha !== fecha,
+      onclick: () => { estado.diaVisto = d.fecha; estado.refrescar?.(); },
+    }, [
+      el('span', { class: 'dl', texto: DIAS_CORTOS[i] ?? d.dia.slice(0, 1) }),
+      el('span', { class: 'dn', texto: d.fecha.slice(8) }),
+      el('span', { class: 'punto' }),
+    ]));
+  }
+  v.append(tira);
+
+  const dia = diaDe(p, fecha);
+  const prog = programaDe(p, fecha);
+  const elegida = opcionDe(p, fecha);
+  const esHoy = fecha === hoy;
+
+  v.append(el('p', { class: 'sub', texto: `${dia?.dia ?? ''} ${fecha.slice(8, 10)}${esHoy ? ' · hoy' : ''}` }));
+
+  // — elegir qué se hace ese día —
+  if (!ses) {
+    const chips = el('div', { class: 'chips' });
+    for (const o of opcionesDe(p)) {
+      const esDelPlan = o.fuente?.fecha === fecha
+        || (o.tipo !== 'gimnasio' && dia?.tipo === o.tipo);
+      chips.append(el('button', {
+        class: 'chip', type: 'button', 'aria-pressed': String(o.id === elegida.id),
+        onclick: async () => {
+          estado.eleccion[fecha] = o.id;
+          await D.set('eleccion', estado.eleccion);
+          estado.refrescar?.();
+        },
+      }, [
+        el('span', { texto: o.etiqueta }),
+        esDelPlan ? el('span', { class: 'pista', texto: 'plan' }) : null,
+      ]));
+    }
+    v.append(tarjeta(el('h3', { texto: 'Qué hago este día' }), chips));
+  }
+
+  // — la diana del día, que se mueve con lo que elijas —
+  const dd = dianas(p);
+  const dDia = dd?.dias.find((x) => x.fecha === fecha);
+  const pub = (p.nutricion?.orientacion?.publicado ?? []).find((x) => x.fecha === fecha)?.kcal;
+  if (dDia) {
+    const delta = pub ? dDia.kcal - pub : 0;
+    v.append(el('div', { class: 'linea-kcal' }, [
+      el('span', { class: 'mediano mono', texto: `${dDia.kcal} kcal` }),
+      el('span', { class: 'sub', texto: delta ? `${delta > 0 ? '+' : ''}${delta} sobre el plan` : 'como el plan' }),
+    ]));
+  }
+
+  if (prog.tipo === 'descanso') {
     v.append(tarjeta(
-      el('h2', { texto: 'Hoy toca descansar' }),
-      el('p', { class: 'muted', texto: 'Si vas a entrenar igualmente, cámbialo en Hoy.' }),
+      el('h2', { texto: 'Descanso' }),
+      el('p', { class: 'muted', texto: 'No se recupera entrenando. Si vas a entrenar igual, elige arriba qué sesión.' }),
     ));
     return v;
   }
@@ -195,13 +294,16 @@ export async function pantallaEntrenar(p, api) {
   // — arrancar la sesion —
   if (!ses || ses.fecha !== fecha) {
     v.append(tarjeta(
-      el('h2', { texto: d?.titulo ?? 'Sesión' }),
-      el('p', { class: 'muted', texto: modo === 'crossfit' ? 'CrossFit' : `${d?.seriesPrevistas ?? 0} series previstas` }),
-      d?.nota ? el('p', { class: 'aviso', texto: d.nota }) : null,
+      el('h2', { texto: prog.titulo ?? 'Sesión' }),
+      el('p', { class: 'muted', texto: prog.tipo === 'crossfit' ? 'CrossFit' : `${prog.seriesPrevistas ?? 0} series previstas` }),
+      prog.prestado ? el('p', { class: 'sub', texto: `Es la sesión que el plan pone el ${prog.prestado.toLowerCase()}.` }) : null,
+      prog.enfoque ? el('p', { class: 'muted', texto: prog.enfoque }) : null,
+      prog.nota ? el('p', { class: 'aviso', texto: prog.nota }) : null,
+      !esHoy ? el('p', { class: 'sub', texto: 'No es hoy: se registrará con la fecha de este día.' }) : null,
       el('button', {
         class: 'btn', type: 'button', texto: 'Empezar',
         onclick: async () => {
-          await D.guardarSesion(nuevaSesion(p, d, modo, fecha));
+          await D.guardarSesion(nuevaSesion(p, prog, prog.tipo, fecha, dia));
           estado.refrescar?.();
         },
       }),
@@ -318,7 +420,8 @@ export async function pantallaEntrenar(p, api) {
   return v;
 }
 
-function nuevaSesion(p, d, modo, fecha) {
+function nuevaSesion(p, prog, modo, fecha, diaPlan) {
+  const d = prog;
   return {
     esquema: 'entreno.sesion/1',
     id: D.nuevoId('ses'),
@@ -329,10 +432,22 @@ function nuevaSesion(p, d, modo, fecha) {
     semana: p.semana.iso,
     inicio: new Date().toISOString(),
     fin: null,
-    plan: d ? { fuente: `estado/plan/semanas/${p.semana.iso}.entreno.json`, dia: d.dia, hoja: d.hoja, tipoPrevisto: d.tipo, tituloPrevisto: d.titulo } : null,
+    plan: diaPlan
+      ? {
+        fuente: `estado/plan/semanas/${p.semana.iso}.entreno.json`,
+        dia: diaPlan.dia,
+        hoja: diaPlan.hoja,
+        tipoPrevisto: diaPlan.tipo,
+        tituloPrevisto: diaPlan.titulo,
+      }
+      : null,
     modalidad: modo,
     titulo: modo === 'crossfit' ? 'CrossFit' : (d?.titulo ?? 'Sesión'),
-    cambioDeModalidad: d && modo !== d.tipo ? { de: d.tipo, a: modo } : null,
+    // Cambio respecto a lo PLANIFICADO para ese dia, no respecto al programa que
+    // se esta usando: es lo que hay que poder auditar despues.
+    cambioDeModalidad: diaPlan && (modo !== diaPlan.tipo || (d?.titulo && d.titulo !== diaPlan.titulo))
+      ? { de: diaPlan.titulo ?? diaPlan.tipo, a: d?.titulo ?? modo }
+      : null,
     segundaDelDia: false,
     ejercicios: modo === 'crossfit' ? [] : (d?.ejercicios ?? []).map((e, i) => ({
       orden: i + 1,

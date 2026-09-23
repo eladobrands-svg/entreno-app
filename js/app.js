@@ -40,7 +40,20 @@ function aviso(texto) {
 
 const bDesc = $('#descanso'); const bReloj = $('#descanso-reloj');
 const bQue = $('#descanso-que'); const bBarra = $('#descanso-barra');
-let tDesc = null; let quedan = 0; let total = 0; let lock = null;
+let tDesc = null; let lock = null;
+
+// El estado del descanso es un INSTANTE de fin, no una cuenta que se decrementa.
+//
+// Esa es la diferencia entre que el reloj siga bien al volver de otra app o
+// que se quede congelado: iOS suspende el JavaScript cuando sales, asi que un
+// setInterval que resta de uno en uno pierde todos los segundos que pasan
+// fuera. Con un instante de fin, el tiempo lo lleva el reloj del telefono y al
+// volver solo hay que restar. Ademas sobrevive a que la app se recargue.
+let fin = null;      // marca de tiempo en ms
+let total = 0;       // duracion pedida, para la barra
+let etiqueta = '';
+
+const restan = () => (fin ? Math.max(0, Math.round((fin - Date.now()) / 1000)) : 0);
 
 async function pedirLock() {
   try { lock = await navigator.wakeLock?.request('screen'); } catch { lock = null; }
@@ -48,34 +61,106 @@ async function pedirLock() {
 function soltarLock() { try { lock?.release(); } catch { /* da igual */ } lock = null; }
 
 function pintaDesc() {
-  const m = Math.floor(quedan / 60); const s = quedan % 60;
+  const q = restan();
+  const m = Math.floor(q / 60); const s = q % 60;
   bReloj.textContent = `${m}:${String(s).padStart(2, '0')}`;
-  bBarra.style.width = `${total ? (quedan / total) * 100 : 0}%`;
+  bBarra.style.width = `${total ? (q / total) * 100 : 0}%`;
+}
+
+function guardarDescanso() {
+  try {
+    if (fin) sessionStorage.setItem('descanso', JSON.stringify({ fin, total, etiqueta }));
+    else sessionStorage.removeItem('descanso');
+  } catch { /* sin almacenamiento: el descanso simplemente no sobrevive a recargar */ }
 }
 
 function descanso(segundos, que) {
   clearInterval(tDesc);
-  total = segundos; quedan = segundos;
-  bQue.textContent = que ?? '';
+  total = segundos;
+  fin = Date.now() + segundos * 1000;
+  etiqueta = que ?? '';
+  bQue.textContent = etiqueta;
   bDesc.hidden = false;
+  guardarDescanso();
   pintaDesc();
   pedirLock();
-  tDesc = setInterval(() => {
-    quedan -= 1;
-    pintaDesc();
-    if (quedan <= 0) { finDescanso(true); }
-  }, 1000);
+  sonido.arrancar();
+  tDesc = setInterval(tic, 250);      // 250 ms: el segundo cambia sin retraso visible
 }
 
-function finDescanso(sonar) {
+function tic() {
+  pintaDesc();
+  if (restan() <= 0) finDescanso(true);
+}
+
+function finDescanso(sonar, tardio = false) {
   clearInterval(tDesc); tDesc = null;
+  fin = null; guardarDescanso();
   bDesc.hidden = true;
   soltarLock();
+  sonido.parar();
   if (sonar) pitido();
+  if (tardio) aviso(`El descanso de «${etiqueta}» terminó mientras estabas fuera.`);
 }
 
 $('#descanso-fin').addEventListener('click', () => finDescanso(false));
-$('#descanso-mas').addEventListener('click', () => { quedan += 30; total = Math.max(total, quedan); pintaDesc(); });
+$('#descanso-mas').addEventListener('click', () => {
+  if (!fin) return;
+  fin += 30000; total = Math.max(total, Math.round((fin - Date.now()) / 1000));
+  guardarDescanso(); pintaDesc();
+});
+
+// Al volver de otra app (o de la pantalla apagada) se recalcula en el acto.
+// Si el descanso se acabo mientras tanto, se dice, en vez de enseñar 0:00 sin
+// explicar nada.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !fin) return;
+  if (restan() <= 0) finDescanso(true, true);
+  else { pintaDesc(); pedirLock(); }
+});
+
+/** Recupera un descanso en curso tras recargar la app. */
+function recuperarDescanso() {
+  let g;
+  try { g = JSON.parse(sessionStorage.getItem('descanso') ?? 'null'); } catch { return; }
+  if (!g?.fin) return;
+  fin = g.fin; total = g.total; etiqueta = g.etiqueta ?? '';
+  if (restan() <= 0) { finDescanso(false, true); return; }
+  bQue.textContent = etiqueta;
+  bDesc.hidden = false;
+  pintaDesc();
+  tDesc = setInterval(tic, 250);
+}
+
+/**
+ * Mantener vivo el aviso con la app en segundo plano.
+ *
+ * iOS congela el JavaScript al salir de la app, PERO no corta el audio. Un
+ * sonido en bucle a volumen cero mantiene viva la pagina y hace que el pitido
+ * suene a su hora aunque estes en otra aplicacion.
+ *
+ * El coste es real y por eso NO va activado: iOS da la sesion de audio a quien
+ * la pide, asi que esto puede pausarte la musica. Se elige en Ajustes.
+ */
+const sonido = (() => {
+  // WAV de un segundo de silencio, generado aqui para no depender de un fichero.
+  const SILENCIO = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+  let el = null; let activo = false;
+  return {
+    get activo() { return activo; },
+    set(v) { activo = v; try { localStorage.setItem('sonidoFondo', v ? '1' : '0'); } catch { /**/ } },
+    cargar() { try { activo = localStorage.getItem('sonidoFondo') === '1'; } catch { /**/ } },
+    arrancar() {
+      if (!activo) return;
+      try {
+        el ??= Object.assign(new Audio(SILENCIO), { loop: true, volume: 0.0001 });
+        el.play().catch(() => {});
+      } catch { /* sin audio: el reloj sigue siendo correcto al volver */ }
+    },
+    parar() { try { el?.pause(); } catch { /**/ } },
+  };
+})();
+sonido.cargar();
 
 // Un pitido sintetizado: sin fichero de audio que cachear ni que se pierda.
 let ac = null;
@@ -126,6 +211,11 @@ function pantallaAjustes() {
       autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="pega aquí el token"></div>
     <p class="sub">Se guarda solo en este móvil, en el almacén de esta página. No viaja a ningún
       otro sitio ni se envía a nadie.</p>
+    <h3>Descanso en segundo plano</h3>
+    <label class="opcion"><input type="checkbox" id="c-sonido">
+      <span>Avisar aunque salga de la app<br>
+      <span class="sub">El reloj siempre vuelve bien al reentrar. Esto además hace que el pitido
+      suene a su hora estando fuera, a costa de poder pausarte la música.</span></span></label>
     <details><summary class="sub">Cambiar repositorio o rama</summary>
       <div class="paso" style="margin-top:8px"><input id="c-repo" autocapitalize="off" spellcheck="false"></div>
       <div class="paso" style="margin-top:8px"><input id="c-rama" autocapitalize="off" spellcheck="false"></div>
@@ -175,6 +265,10 @@ function pantallaAjustes() {
     }
   });
   wrap.append(guardar);
+
+  const chk = wrap.querySelector('#c-sonido');
+  chk.checked = sonido.activo;
+  chk.addEventListener('change', () => sonido.set(chk.checked));
 
   D.config().then((c) => {
     wrap.querySelector('#c-repo').value = c.repo ?? REPO_POR_DEFECTO;
@@ -265,6 +359,7 @@ async function arrancar() {
     return;
   }
   await pinta();
+  recuperarDescanso();
   D.vaciar();
 }
 
