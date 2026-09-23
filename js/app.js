@@ -185,11 +185,37 @@ estado.refrescar = pinta;
 
 // ─── arranque ───────────────────────────────────────────────────────────────
 
+/**
+ * Traspaso de configuracion por URL: #config=<base64 de {repo,token,rama}>.
+ *
+ * Existe para no tener que teclear un token de 40 caracteres en un movil. Se
+ * guarda y se BORRA de la barra de direcciones en el acto, para que no quede en
+ * el historial ni se comparta sin querer al pasar el enlace.
+ */
+async function configDesdeUrl() {
+  const m = /[#&]config=([A-Za-z0-9+/=_-]+)/.exec(location.hash);
+  if (!m) return false;
+  history.replaceState(null, '', location.pathname + location.search);
+  try {
+    const json = atob(m[1].replace(/-/g, '+').replace(/_/g, '/'));
+    const c = JSON.parse(json);
+    if (!c.repo || !c.token) throw new Error('faltan repo o token');
+    await D.guardarConfig({ repo: c.repo, token: c.token, rama: c.rama ?? 'master' });
+    aviso('Conectado con el repositorio.');
+    return true;
+  } catch (e) {
+    aviso(`El enlace de configuración no vale: ${e.message}`);
+    return false;
+  }
+}
+
 async function arrancar() {
+  const reciente = await configDesdeUrl();
   await pintaSync();
   estado.eleccion = (await D.get('eleccion')) ?? {};
   try {
-    estado.paquete = await D.paquete();
+    // Recien configurada, se va a la red: el cache de antes no sirve.
+    estado.paquete = await D.paquete({ forzarRed: reciente });
   } catch (e) {
     vista.replaceChildren(Object.assign(document.createElement('div'), {
       className: 'aviso malo',
