@@ -347,6 +347,32 @@ export function pantallaHoy(p, api) {
   }
   v.append(tarjPasos);
 
+  // — FC en reposo y HRV: nunca el número suelto, siempre contra su base —
+  const rec = p.analisis?.recuperacion ?? null;
+  if (rec) {
+    const dv = (x, u) => {
+      if (x === null) return 'sin muestra (hacen falta 5 días)';
+      return `${x > 0 ? '+' : ''}${num(x, 1)} ${u} sobre la base de 7 días`;
+    };
+    const tarjRec = tarjeta(
+      el('h2', { texto: 'Recuperación' }),
+      el('div', { class: 'rejilla' }, [
+        baldosa('FC reposo', rec.ultimo.fcReposo !== null ? `${rec.ultimo.fcReposo} lpm` : '—', dv(rec.desviacion.fcReposo, 'lpm')),
+        baldosa('HRV', rec.ultimo.hrv !== null ? `${num(rec.ultimo.hrv, 1)} ms` : '—', dv(rec.desviacion.hrv, 'ms')),
+      ]),
+      el('p', { class: 'sub', texto: rec.ultimo.fecha === fecha ? 'De esta noche.' : `Último dato: ${rec.ultimo.fecha}.` }),
+    );
+    // Las dos a la vez y en la dirección mala es lo único que se señala; por
+    // separado son ruido. Y ni así se declara fatiga: se dice que hay que mirarlo.
+    const fcArriba = rec.desviacion.fcReposo !== null && rec.desviacion.fcReposo >= 3;
+    const hrvAbajo = rec.desviacion.hrv !== null && rec.desviacion.hrv <= -10;
+    if (fcArriba && hrvAbajo) {
+      tarjRec.append(el('p', { class: 'aviso', texto: 'Las dos se han movido en la dirección de la fatiga a la vez. Mira el sueño y la carga de los últimos días antes de subir nada.' }));
+    }
+    tarjRec.append(el('p', { class: 'sub', texto: rec.nota }));
+    v.append(tarjRec);
+  }
+
   // — el resto de la pulsera, y el boton para traerla sin PC —
   const s = ult(p.historico.sueno); const pe = ult(p.historico.peso);
   // La hora de la ultima sincronizacion, visible: sin esto «no esta actualizada»
@@ -945,6 +971,14 @@ export function pantallaAnalisis(p, api) {
       dato: `${ses.length} registradas`,
       pie: sinRpe ? `${sinRpe} sin RPE` : 'todas con RPE',
       alerta: sinRpe > 0 },
+    { id: 'recuperacion', titulo: 'Recuperación', icono: 'i-pulso',
+      dato: a.recuperacion?.ultimo?.fcReposo !== null && a.recuperacion ? `${a.recuperacion.ultimo.fcReposo} lpm` : '—',
+      pie: a.recuperacion
+        ? (a.recuperacion.base.fcReposo === null
+          ? `sin base aún (${a.recuperacion.base.nFc} de 5 días)`
+          : `base ${num(a.recuperacion.base.fcReposo, 1)} lpm · HRV ${num(a.recuperacion.base.hrv, 1)} ms`)
+        : 'sin datos de la pulsera',
+      alerta: !a.recuperacion },
     { id: 'comida', titulo: 'Comida', icono: 'i-comer',
       dato: mediaKcal ? `${mediaKcal} kcal` : '—',
       pie: real.length ? `media de ${real.length} días, FatSecret` : 'sin datos de FatSecret' },
@@ -983,6 +1017,7 @@ export function pantallaAnalisis(p, api) {
   else if (sec === 'peso') v.append(seccionPeso(p));
   else if (sec === 'fuerza') v.append(seccionFuerza(p));
   else if (sec === 'sesiones') v.append(seccionSesiones(p, a));
+  else if (sec === 'recuperacion') v.append(seccionRecuperacion(p, a));
   else v.append(seccionComida(p, a));
   return v;
 }
@@ -1084,6 +1119,52 @@ function seccionSesiones(p, a) {
       el('span', { class: 'v', texto: `${s.series ?? '—'} ser${s.rpe ? ` · RPE ${num(s.rpe, 1)}` : ''}${s.fatiga ? ` · fat ${num(s.fatiga, 1)}` : ''}` }),
     ]));
   }
+  return v;
+}
+
+// FC en reposo y HRV. Se enseñan CON el sueño de la misma noche a propósito: las
+// dos se mueven con el sueño, y leerlas sin él es la manera más rápida de
+// confundir una noche corta con fatiga acumulada (regla dura 2).
+function seccionRecuperacion(p, a) {
+  const v = el('div');
+  const filas = p.historico.recuperacion ?? [];
+  if (!filas.length) {
+    return el('div', {}, vacio('La pulsera no ha traído ni FC en reposo ni HRV todavía.'));
+  }
+
+  const r = a.recuperacion;
+  if (r) {
+    const dv = (x, u) => (x === null ? 'sin muestra' : `${x > 0 ? '+' : ''}${num(x, 1)} ${u}`);
+    v.append(tarjeta(
+      el('h2', { texto: 'Anoche contra su base' }),
+      el('div', { class: 'rejilla' }, [
+        baldosa('FC reposo', r.ultimo.fcReposo !== null ? `${r.ultimo.fcReposo} lpm` : '—', dv(r.desviacion.fcReposo, 'lpm')),
+        baldosa('HRV', r.ultimo.hrv !== null ? `${num(r.ultimo.hrv, 1)} ms` : '—', dv(r.desviacion.hrv, 'ms')),
+      ]),
+      r.base.fcReposo === null
+        ? el('p', { class: 'aviso', texto: `Con ${r.base.nFc} días no hay base con la que comparar. Hacen falta 5.` })
+        : el('p', { class: 'sub', texto: `Base de ${r.base.dias} días: ${num(r.base.fcReposo, 1)} lpm y ${num(r.base.hrv, 1)} ms.` }),
+      el('p', { class: 'sub', texto: r.nota }),
+    ));
+  }
+
+  const sueno = new Map((p.historico.sueno ?? []).map((s) => [s.fecha, s]));
+  v.append(tarjeta(el('h2', { texto: `Últimos ${Math.min(filas.length, 21)} días` })));
+  for (const f of filas.slice(-21).reverse()) {
+    const s = sueno.get(f.fecha);
+    v.append(el('div', { class: 'dato' }, [
+      el('span', {}, [
+        el('span', { texto: f.fecha }),
+        el('br'),
+        el('span', { class: 'sub', texto: s ? `${num(s.horas, 1)} h de sueño · ${s.calidad}` : 'sin dato de sueño' }),
+      ]),
+      el('span', {
+        class: 'v',
+        texto: `${f.fcReposo !== null ? `${f.fcReposo} lpm` : '—'} · ${f.hrv !== null ? `${num(f.hrv, 1)} ms` : '—'}`,
+      }),
+    ]));
+  }
+  v.append(el('p', { class: 'sub', texto: `${filas.length} días registrados desde ${filas[0].fecha}. Los pone la pulsera; la app no los toca.` }));
   return v;
 }
 
