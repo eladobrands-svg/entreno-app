@@ -836,8 +836,15 @@ function fichaHTML(e, f) {
     el('h3', { texto: 'Músculos' }),
     el('p', { class: 'muted', texto: `${f.musculos.principal.join(', ')}${f.musculos.secundario.length ? ' · y de apoyo: ' + f.musculos.secundario.join(', ') : ''}` }),
     f.notas ? el('p', { class: 'aviso', texto: f.notas }) : null,
+    // Se dice QUÉ se va a abrir. Un botón «Ver el vídeo» a ciegas obliga a salir
+    // de la app para averiguar si el enlace es el bueno.
     f.video?.url
-      ? el('a', { class: 'btn', href: f.video.url, target: '_blank', rel: 'noopener', texto: 'Ver el vídeo' })
+      ? el('div', {}, [
+        el('a', { class: 'btn', href: f.video.url, target: '_blank', rel: 'noopener', texto: 'Ver el vídeo' }),
+        f.video.titulo
+          ? el('p', { class: 'sub', texto: `${f.video.titulo}${f.video.canal ? ` · ${f.video.canal}` : ''}${f.video.revisado ? ` · comprobado el ${f.video.revisado}` : ''}` })
+          : null,
+      ])
       : el('p', { class: 'aviso', texto: 'Vídeo pendiente. Se añade cuando esté comprobado: un enlace sin verificar es un dato inventado.' }),
   ]);
 }
