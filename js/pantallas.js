@@ -379,11 +379,36 @@ export function pantallaHoy(p, api) {
   // no se puede distinguir de «la pulsera aun no ha volcado a Google Health».
   const gen = p.generado ? new Date(p.generado) : null;
   const hora = gen ? gen.toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : 'desconocida';
-  const estadoBtn = el('p', { class: 'sub', texto: `Sincronizado el ${hora}. Los pone la pulsera; la app no los toca.` });
+  // OJO: p.generado es cuando se publico el paquete, que tambien pasa al subir
+  // una sesion. No dice cuando entro la pulsera: eso lo dice pulsera.json, que
+  // Actions escribe en cada intento, salga bien o mal.
+  const estadoBtn = el('p', { class: 'sub', texto: `Paquete del ${hora}. Comprobando la pulsera…` });
+  const avisoPulsera = el('p', { class: 'aviso malo' });
+  avisoPulsera.hidden = true;
+  const fechaHora = (iso) => (iso
+    ? new Date(iso).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+    : 'nunca');
+  const pintaEstadoPulsera = (e) => {
+    if (!e) { estadoBtn.textContent = `Paquete del ${hora}.`; return; }
+    const dias = e.permiso?.diasRestantes;
+    estadoBtn.textContent = `Pulsera traída el ${fechaHora(e.ultimaBuena)}. Permiso de Google: ${dias ?? '?'} días.`;
+    const avisos = [];
+    if (!e.ok) avisos.push(`El último intento (${fechaHora(e.cuando)}) falló: ${e.error || 'sin detalle'}`);
+    if (typeof dias === 'number' && dias <= 3) {
+      avisos.push(dias <= 0
+        ? 'El permiso de Google ha caducado. Enciende el PC: se renueva solo al arrancar.'
+        : `El permiso de Google caduca en ${dias} días. Enciende el PC un rato: se renueva solo al arrancar.`);
+    }
+    avisoPulsera.textContent = avisos.join(' · ');
+    avisoPulsera.hidden = !avisos.length;
+  };
+  D.estadoPulsera().then(pintaEstadoPulsera)
+    .catch(() => { estadoBtn.textContent = `Paquete del ${hora}. Sin conexión para comprobar la pulsera.`; });
   const btnPulsera = el('button', {
     class: 'btn sec', type: 'button', texto: 'Actualizar pulsera',
     onclick: async () => {
       btnPulsera.disabled = true;
+      avisoPulsera.hidden = true;
       try {
         await D.actualizarPulsera((t) => { estadoBtn.textContent = t; });
         estadoBtn.textContent = 'Listo. Cargando los datos nuevos…';
@@ -391,7 +416,9 @@ export function pantallaHoy(p, api) {
         api.aviso('Pulsera actualizada.');
         estado.refrescar?.();
       } catch (e) {
-        estadoBtn.textContent = e.message;
+        estadoBtn.textContent = 'No se ha podido actualizar.';
+        avisoPulsera.textContent = e.message;
+        avisoPulsera.hidden = false;
         btnPulsera.disabled = false;
       }
     },
@@ -404,6 +431,7 @@ export function pantallaHoy(p, api) {
     ]),
     btnPulsera,
     estadoBtn,
+    avisoPulsera,
   ));
 
   // — el resumen del día, con lo que hay escrito, sin inventar nada —

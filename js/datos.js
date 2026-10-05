@@ -174,20 +174,44 @@ export async function actualizarPulsera(onEstado = () => {}) {
   }
   onEstado('Pedido a GitHub. Suele tardar un minuto…');
 
-  // Cuando la sincronizacion termina, republica el paquete: el indice cambia
-  // de fecha de generacion. Eso se puede leer con el mismo permiso, asi que es
-  // la senal de «terminado» sin tocar la API de Actions.
+  // La senal de «terminado» es derivado/app/pulsera.json: Actions lo escribe
+  // SIEMPRE, salga bien o mal, con el motivo si falla. Antes se esperaba a que
+  // cambiara el indice, que solo cambia si sale bien: un fallo se veia como
+  // «sigue corriendo» y asi estuvo nueve dias sin que nadie lo supiera.
+  // El indice se sigue mirando por si el fichero de estado no existiera aun.
+  // Hasta 6 min: con tres intentos separados 30 s, una pasada mala tarda mas.
   const inicio = Date.now();
   let vueltas = 0;
-  while (Date.now() - inicio < 240000) {
+  while (Date.now() - inicio < 360000) {
     await new Promise((r) => setTimeout(r, 8000));
     vueltas++;
-    let ahora = null;
-    try { ahora = await indiceGenerado(); } catch { /* red floja: se reintenta */ }
-    if (ahora && ahora !== antes && ahora > pedido) return { generado: ahora };
+    let est = null;
+    try { est = await estadoPulsera(); } catch { /* red floja: se reintenta */ }
+    if (est && est.cuando > pedido) {
+      if (est.ok) return { generado: est.cuando, estado: est };
+      throw new Error(`No se pudo traer la pulsera: ${est.error || 'sin detalle'}`);
+    }
+    if (!est) {
+      let ahora = null;
+      try { ahora = await indiceGenerado(); } catch { /* idem */ }
+      if (ahora && ahora !== antes && ahora > pedido) return { generado: ahora };
+    }
     onEstado(vueltas < 4 ? 'En cola en GitHub…' : 'Trayendo datos de Google Health…');
   }
-  throw new Error('Sigue corriendo. Los datos aparecerán en la siguiente actualización.');
+  throw new Error('GitHub no ha respondido en 6 minutos. Vuelve a intentarlo; si se repite, el fallo está en GitHub, no en la pulsera.');
+}
+
+/**
+ * El resultado del ultimo intento de traer la pulsera y los dias que le
+ * quedan al permiso de Google. null si todavia no existe.
+ */
+export async function estadoPulsera() {
+  try {
+    return await leerDelRepo('derivado/app/pulsera.json');
+  } catch (e) {
+    if (e.status === 404) return null;
+    throw e;
+  }
 }
 
 async function indiceGenerado() {
