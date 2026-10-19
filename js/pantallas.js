@@ -394,6 +394,7 @@ export function pantallaHoy(p, api) {
     estadoBtn.textContent = `Pulsera traída el ${fechaHora(e.ultimaBuena)}. Permiso de Google: ${dias ?? '?'} días.`;
     const avisos = [];
     if (!e.ok) avisos.push(`El último intento (${fechaHora(e.cuando)}) falló: ${e.error || 'sin detalle'}`);
+    if (e.ok && e.aviso) avisos.push(e.aviso);
     if (typeof dias === 'number' && dias <= 3) {
       avisos.push(dias <= 0
         ? 'El permiso de Google ha caducado. Enciende el PC: se renueva solo al arrancar.'
@@ -650,6 +651,16 @@ export async function pantallaEntrenar(p, api) {
 
     e.series.forEach((s, iS) => t.append(filaSerie(p, ses, e, s, iE, iS, api)));
 
+    // Hasta el 2026-10-19 el RPE de cada ejercicio NO tenia donde escribirse, y
+    // las reglas de subir carga lo exigen: tres semanas sin subir nada por un
+    // campo que no existia. Va en la ULTIMA serie con datos, que es la que decide.
+    const ultimaConDatos = [...e.series].reverse().find((x) => x.completada || x.reps !== null)
+      ?? e.series[e.series.length - 1];
+    if (ultimaConDatos) {
+      t.append(campoNum('RPE de la última serie', ultimaConDatos.rpe, 0.5, 1, 10,
+        async (x) => { ultimaConDatos.rpe = x; await D.guardarSesion(ses); }));
+    }
+
     // Quitar la última serie. Si tiene datos o está marcada, se pregunta: una
     // serie registrada es un dato, y un dato no se borra por un toque de más.
     const ultima = e.series[e.series.length - 1];
@@ -727,7 +738,14 @@ export async function pantallaEntrenar(p, api) {
       class: 'btn', type: 'button', texto: 'Cerrar sesión y enviar',
       onclick: async () => {
         if (ses.cierre.rpeGlobal === null || ses.cierre.fatigaPost === null) {
-          if (!confirm('Falta el RPE de la sesión o la fatiga. Sin eso ninguna carga puede subir. ¿Cerrar igual?')) return;
+          if (!confirm('Falta el RPE de la sesión o la fatiga. Sin eso no se puede decidir el volumen. ¿Cerrar igual?')) return;
+        }
+        const sinRpe = (ses.ejercicios ?? [])
+          .filter((x) => !x.omitido && x.series.some((s) => s.completada || s.reps !== null))
+          .filter((x) => !x.series.some((s) => s.rpe !== null))
+          .map((x) => x.base ?? x.nombre);
+        if (sinRpe.length) {
+          if (!confirm(`Sin RPE de la última serie: ${sinRpe.join(', ')}. Esos ejercicios no pueden subir de peso. ¿Cerrar igual?`)) return;
         }
         ses.fin = new Date().toISOString();
         await D.encolar(ses);
