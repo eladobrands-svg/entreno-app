@@ -8,7 +8,7 @@
 // cambio publicado se ve en el siguiente arranque en vez de quedarse pegado,
 // que es lo que el usuario pidio con «cambios en tiempo real».
 
-const CACHE = 'entreno-2026-10-21.1';
+const CACHE = 'entreno-2026-10-21.2';
 const ARMAZON = [
   './',
   './index.html',

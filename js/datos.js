@@ -133,7 +133,12 @@ export async function leerDelRepo(ruta) {
   return JSON.parse(deB64(j.content));
 }
 
-export async function escribirEnRepo(ruta, texto, mensaje) {
+export function escribirEnRepo(ruta, texto, mensaje) {
+  return escribirBase64EnRepo(ruta, b64(texto), mensaje);
+}
+
+/** Igual, pero con el contenido ya en base64 (una imagen, por ejemplo). */
+export async function escribirBase64EnRepo(ruta, contenidoB64, mensaje) {
   const c = await config();
   let sha;
   try {
@@ -141,7 +146,7 @@ export async function escribirEnRepo(ruta, texto, mensaje) {
   } catch { /* no existe: es un alta */ }
   return gh(`/repos/${c.repo}/contents/${ruta}`, {
     method: 'PUT',
-    body: JSON.stringify({ message: mensaje, content: b64(texto), branch: c.rama, ...(sha ? { sha } : {}) }),
+    body: JSON.stringify({ message: mensaje, content: contenidoB64, branch: c.rama, ...(sha ? { sha } : {}) }),
   });
 }
 
@@ -357,6 +362,17 @@ export async function vaciar() {
   try {
     for (const item of await colaEntera()) {
       try {
+        // La foto del WOD va como imagen aparte, al lado del sobre, y el sobre
+        // solo guarda su ruta: meterla en el JSON engordaria cada sobre con
+        // 300 KB de base64. Si el sobre falla despues, la foto ya subida se
+        // reescribe igual en el reintento (mismo nombre).
+        const foto = item.sobre.wod?.foto;
+        if (foto?.dataUrl) {
+          const rutaFoto = item.ruta.replace(/\.json$/, '.jpg');
+          await escribirBase64EnRepo(rutaFoto, foto.dataUrl.split(',')[1], `app: foto WOD ${item.sobre.id}`);
+          item.sobre.wod.foto = { ruta: rutaFoto, nombre: foto.nombre ?? null };
+          await tx('cola', 'readwrite', (s) => s.put(item));
+        }
         await escribirEnRepo(item.ruta, `${JSON.stringify(item.sobre, null, 1)}\n`,
           `app: ${item.sobre.esquema} ${item.sobre.id}`);
         await tx('cola', 'readwrite', (s) => s.delete(item.id));

@@ -628,6 +628,10 @@ export async function pantallaEntrenar(p, api) {
     },
   }));
 
+  // — CrossFit: foto de la pizarra + texto libre (2026-10-21) —
+  // Antes el WOD no tenia donde escribirse y acababa colado como ejercicio.
+  if (ses.wod) v.append(tarjetaWod(ses));
+
   ses.ejercicios.forEach((e, iE) => {
     const ficha = p.catalogo.ejercicios[e.ejercicioId] ?? null;
     const uv = p.historico.ultimaVezPorEjercicio[e.ejercicioId];
@@ -766,6 +770,9 @@ export async function pantallaEntrenar(p, api) {
         if (sinRpe.length) {
           if (!confirm(`Sin RPE de la última serie: ${sinRpe.join(', ')}. Esos ejercicios no pueden subir de peso. ¿Cerrar igual?`)) return;
         }
+        if (ses.wod && !ses.wod.foto && !String(ses.wod.texto ?? '').trim()) {
+          if (!confirm('El WOD está vacío: ni foto ni texto. Sin eso no sé qué hiciste en la clase. ¿Cerrar igual?')) return;
+        }
         ses.fin = new Date().toISOString();
         await D.encolar(ses);
         await D.cerrarSesion(ses.fecha);
@@ -829,7 +836,7 @@ function nuevaSesion(p, prog, modo, fecha, diaPlan) {
         nota: '',
       })),
     })),
-    wod: modo === 'crossfit' ? { nombre: '', esquema: '', escalado: '', cargas: '', resultado: null } : null,
+    wod: modo === 'crossfit' ? { nombre: '', esquema: '', escalado: '', cargas: '', resultado: null, texto: '', foto: null } : null,
     cierre: { rpeGlobal: null, fatigaPost: null, duracionMin: null, observaciones: '' },
   };
 }
@@ -879,6 +886,80 @@ function filaSerie(p, ses, e, s, iE, iS, api) {
     }, ic('i-check')),
   ]);
   return fila;
+}
+
+/**
+ * El WOD tal cual: la foto de la pizarra del box y lo que el usuario quiera
+ * contar (pesos, repeticiones, tiempo, escalado). La foto se reduce aqui a
+ * 1600 px de lado y JPEG 0,8 (~200-400 KB): una de 12 MP pesaria 4 MB en el
+ * repo por cada clase.
+ */
+function tarjetaWod(ses) {
+  const guardar = () => D.guardarSesion(ses);
+  const t = tarjeta(el('h2', { texto: 'WOD' }));
+
+  const vista = el('div', { class: 'wod-foto' });
+  const pintaFoto = () => {
+    vista.replaceChildren();
+    const src = ses.wod.foto?.dataUrl;
+    if (!src) return;
+    vista.append(
+      el('img', { src, alt: 'Pizarra del WOD', style: 'width:100%;border-radius:8px;display:block' }),
+      el('button', {
+        class: 'btn sec', type: 'button', texto: 'Quitar la foto',
+        onclick: async () => { ses.wod.foto = null; await guardar(); pintaFoto(); },
+      }),
+    );
+  };
+
+  const archivo = el('input', { type: 'file', accept: 'image/*', capture: 'environment', style: 'display:none' });
+  archivo.addEventListener('change', async () => {
+    const f = archivo.files?.[0];
+    if (!f) return;
+    try {
+      ses.wod.foto = { dataUrl: await reducirFoto(f), nombre: f.name };
+      await guardar();
+      pintaFoto();
+    } catch (e) {
+      alert(`No se pudo leer la foto: ${e.message}`);
+    }
+    archivo.value = '';
+  });
+
+  t.append(
+    el('p', { class: 'muted', texto: 'Foto de lo que manda el box y, debajo, lo que hiciste tú.' }),
+    archivo,
+    el('button', { class: 'btn sec', type: 'button', texto: '📷 Foto de la pizarra', onclick: () => archivo.click() }),
+    vista,
+    el('h3', { texto: 'Lo que hice' }),
+    el('textarea', {
+      placeholder: 'Pesos, repeticiones, tiempo, rondas, escalado… Ej.: thrusters 40 kg, 21-15-9, 8:32, dominadas con goma.',
+      oninput: async (ev) => { ses.wod.texto = ev.target.value; await guardar(); },
+    }, document.createTextNode(ses.wod.texto ?? '')),
+  );
+  pintaFoto();
+  return t;
+}
+
+/** Reduce una foto a 1600 px de lado y JPEG 0,8. Devuelve un data URL. */
+async function reducirFoto(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, err) => {
+      const i = new Image();
+      i.onload = () => ok(i);
+      i.onerror = () => err(new Error('formato no soportado'));
+      i.src = url;
+    });
+    const escala = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * escala);
+    c.height = Math.round(img.naturalHeight * escala);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c.toDataURL('image/jpeg', 0.8);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
 }
 
 function campoNum(etiqueta, valor, step, min, max, onCambio) {
