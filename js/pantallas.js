@@ -593,6 +593,14 @@ export async function pantallaEntrenar(p, api) {
         : el('p', { class: 'muted', texto: 'El WOD se anota al terminar.' }),
       prog.prestado ? el('p', { class: 'sub', texto: `Es la sesión que el plan pone el ${prog.prestado.toLowerCase()}.` }) : null,
       prog.enfoque ? el('p', { class: 'muted', texto: prog.enfoque }) : null,
+      // La sesion entera a la vista ANTES de empezar: sin esto habia que pulsar
+      // «Empezar» para saber que tocaba, y eso abria una sesion (2026-10-21).
+      (prog.ejercicios ?? []).length
+        ? el('div', { class: 'vista-previa' }, prog.ejercicios.map((e, i) => el('div', { class: 'dato' }, [
+          el('span', { texto: `${i + 1}. ${e.base ?? e.nombre}` }),
+          el('span', { class: 'v', texto: `${e.series} × ${e.reps} · ${e.pesoTexto}${e.descansoSeg ? ` · ${e.descansoSeg} s` : ''}` }),
+        ])))
+        : null,
       prog.nota ? el('p', { class: 'aviso', texto: prog.nota }) : null,
       !esHoy ? el('p', { class: 'sub', texto: 'No es hoy: se registrará con la fecha de este día.' }) : null,
       el('button', {
@@ -608,6 +616,17 @@ export async function pantallaEntrenar(p, api) {
 
   // — la sesion en curso —
   v.append(el('p', { class: 'sub', texto: `${ses.titulo} · empezada a las ${ses.inicio.slice(11, 16)}` }));
+  // Salir de una sesion empezada sin querer. Si ya hay series hechas se
+  // pregunta: una serie registrada es un dato, y no se tira por un toque.
+  v.append(el('button', {
+    class: 'btn sec', type: 'button', texto: '← Salir sin guardar',
+    onclick: async () => {
+      const hechas = ses.ejercicios.reduce((a, e) => a + e.series.filter((s) => s.completada).length, 0);
+      if (hechas && !confirm(`Llevas ${hechas} series marcadas. Si sales se borran de este móvil. ¿Salir igual?`)) return;
+      await D.cerrarSesion(ses.fecha);
+      estado.refrescar?.();
+    },
+  }));
 
   ses.ejercicios.forEach((e, iE) => {
     const ficha = p.catalogo.ejercicios[e.ejercicioId] ?? null;
