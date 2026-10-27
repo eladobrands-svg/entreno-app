@@ -912,7 +912,10 @@ function tarjetaWod(ses) {
     );
   };
 
-  const archivo = el('input', { type: 'file', accept: 'image/*', capture: 'environment', style: 'display:none' });
+  // SIN 'capture': con el, iOS abre la camara directamente y no deja elegir
+  // una captura de pantalla de la galeria, que es como el usuario trae el WOD
+  // (pantallazo de la app del box). Sin el, iOS ofrece fototeca, camara y archivos.
+  const archivo = el('input', { type: 'file', accept: 'image/*', style: 'display:none' });
   archivo.addEventListener('change', async () => {
     const f = archivo.files?.[0];
     if (!f) return;
@@ -927,9 +930,9 @@ function tarjetaWod(ses) {
   });
 
   t.append(
-    el('p', { class: 'muted', texto: 'Foto de lo que manda el box y, debajo, lo que hiciste tú.' }),
+    el('p', { class: 'muted', texto: 'Captura de la app del box o foto de la pizarra y, debajo, lo que hiciste tú.' }),
     archivo,
-    el('button', { class: 'btn sec', type: 'button', texto: '📷 Foto de la pizarra', onclick: () => archivo.click() }),
+    el('button', { class: 'btn sec', type: 'button', texto: '📷 Adjuntar foto o captura', onclick: () => archivo.click() }),
     vista,
     el('h3', { texto: 'Lo que hice' }),
     el('textarea', {
