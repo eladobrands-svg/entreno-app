@@ -8,7 +8,7 @@ import { estado, pantallaHoy, pantallaEntrenar, pantallaComer, pantallaAnalisis,
 // Se sube a mano en cada despliegue. Sirve para dos cosas: que se vea en
 // Ajustes qué versión está corriendo el móvil (sin eso, «no veo los cambios»
 // es indiagnosticable) y para que el service worker se reinstale.
-export const VERSION = '2026-10-27.1';
+export const VERSION = '2026-10-27.2';
 
 const $ = (s) => document.querySelector(s);
 const vista = $('#vista');
@@ -198,7 +198,13 @@ async function pintaSync(n) {
   const c = await D.config();
   const pend = n ?? await D.pendientes();
   if (!c.token || !c.repo) { chip.dataset.estado = 'sin-token'; chipN.textContent = 'conectar'; return; }
-  if (pend > 0) { chip.dataset.estado = 'pendiente'; chipN.textContent = String(pend); return; }
+  if (pend > 0) {
+    chip.dataset.estado = 'pendiente';
+    // Si GitHub rechaza el token, se dice en el chip: un número solo no explica nada.
+    const rechazado = (await D.colaEntera()).some((x) => /GitHub 401/.test(x.ultimoError ?? ''));
+    chipN.textContent = rechazado ? `${pend} · token` : String(pend);
+    return;
+  }
   chip.dataset.estado = 'ok'; chipN.textContent = '';
 }
 D.alCambiarCola((n) => pintaSync(n));
@@ -330,6 +336,58 @@ function pantallaAjustes() {
     wrap.querySelector('#c-repo').value = c.repo ?? REPO_POR_DEFECTO;
     wrap.querySelector('#c-rama').value = c.rama ?? RAMA_POR_DEFECTO;
   });
+
+  // — lo que hay en la cola y POR QUE no sale (2026-10-27) —
+  // Antes la cola solo se veia como un numero en el chip: dos sesiones de W43
+  // se quedaron sin enviar una semana y nadie veia el motivo.
+  const cola = document.createElement('div');
+  wrap.prepend(cola);
+  const pintaCola = async () => {
+    const items = await D.colaEntera();
+    const c = await D.config();
+    cola.innerHTML = '';
+    const h = document.createElement('h2');
+    h.textContent = items.length ? `Sin enviar: ${items.length}` : 'Todo enviado';
+    cola.append(h);
+    for (const it of items) {
+      const p = document.createElement('div');
+      p.className = 'dato';
+      const s = it.sobre ?? {};
+      p.innerHTML = '<span></span><span class="v"></span>';
+      p.children[0].textContent = `${s.fecha ?? '?'} · ${s.titulo ?? s.esquema ?? it.id}`;
+      p.children[1].textContent = `${it.intentos ?? 0} intentos`;
+      cola.append(p);
+      if (it.ultimoError) {
+        const e = document.createElement('p');
+        e.className = 'sub';
+        e.textContent = `Último error: ${it.ultimoError}`;
+        cola.append(e);
+      }
+    }
+    // Se comprueba el token guardado: es la causa tipica (los fine-grained
+    // caducan a los 30 dias por defecto).
+    if (c.token && c.repo) {
+      const d = await D.diagnosticar(c.token, c.repo);
+      const e = document.createElement('p');
+      e.className = d.ok ? 'sub' : 'aviso malo';
+      e.textContent = d.ok
+        ? `Conexión: ${d.motivo}`
+        : `Conexión rota: ${d.motivo} Si caducó, crea uno nuevo en GitHub y pégalo abajo: lo pendiente se envía solo.`;
+      cola.append(e);
+    }
+    if (items.length) {
+      const b = document.createElement('button');
+      b.className = 'btn'; b.type = 'button'; b.textContent = 'Reintentar el envío ahora';
+      b.addEventListener('click', async () => {
+        b.disabled = true; b.textContent = 'Enviando…';
+        const r = await D.vaciar();
+        aviso(r.subidos ? `Enviadas ${r.subidos}. Quedan ${r.quedan}.` : `No salió ninguna. Quedan ${r.quedan}.`);
+        await pintaCola(); await pintaSync();
+      });
+      cola.append(b);
+    }
+  };
+  pintaCola().catch((e) => { cola.textContent = `No se pudo leer la cola: ${e.message}`; });
   return wrap;
 }
 
